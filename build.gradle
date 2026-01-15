@@ -34,6 +34,11 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    // JSONB 지원
+    implementation 'io.hypersistence:hypersistence-utils-hibernate-63:3.7.0'
+    // pgvector 지원 (필요시)
+    implementation 'com.pgvector:pgvector:0.1.4'
+
 }
 
 tasks.named('test') {
