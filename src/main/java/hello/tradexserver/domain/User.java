@@ -35,4 +35,25 @@ public class User extends BaseTimeEntity {
     private AuthProvider socialProvider;
 
     private String socialId;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean profileCompleted = false;
+
+    public void completeProfile() {
+        this.profileCompleted = true;
+    }
+
+    public void updateProfile(String username, String profileImageUrl) {
+        if (username != null) {
+            this.username = username;
+        }
+        if (profileImageUrl != null) {
+            this.profileImageUrl = profileImageUrl;
+        }
+    }
+
+    public void updatePassword(String passwordHash) {
+        this.passwordHash = passwordHash;
+    }
 }
