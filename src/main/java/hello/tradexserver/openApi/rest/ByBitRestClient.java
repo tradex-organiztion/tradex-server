@@ -1,9 +1,8 @@
-package hello.tradexserver.openApi;
+package hello.tradexserver.openApi.rest;
 
 import hello.tradexserver.domain.Order;
 import hello.tradexserver.dto.response.BybitClosedPnlResponse;
 import hello.tradexserver.dto.response.PositionResponse;
-import hello.tradexserver.openApi.webSocket.PositionListener;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpEntity;
@@ -18,7 +17,7 @@ import java.util.List;
 
 @Slf4j
 @RequiredArgsConstructor
-public class ByBitExchangeService implements ExchangeService {
+public class ByBitRestClient implements ExchangeRestClient {
 
     private final String apiKey;
     private final String apiSecret;
@@ -72,11 +71,6 @@ public class ByBitExchangeService implements ExchangeService {
     public List<Order> getOrders() {
         // TODO: Bybit API 호출
         return List.of();
-    }
-
-    @Override
-    public void subscribePositionUpdates(PositionListener listener) {
-        // TODO: Bybit WebSocket 구독
     }
 
     private String generateSignature(String timestamp, String recvWindow, String queryString) {

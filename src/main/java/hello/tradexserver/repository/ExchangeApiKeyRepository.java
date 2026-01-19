@@ -30,11 +30,11 @@ public interface ExchangeApiKeyRepository extends JpaRepository<ExchangeApiKey, 
     /**
      * 특정 사용자의 활성화된 API Key만 조회
      */
-    @Query("SELECT eak FROM ExchangeApiKey eak WHERE eak.user.id = :userId AND eak.isActive = true")
+    @Query("SELECT eak FROM ExchangeApiKey eak WHERE eak.user.userId = :userId AND eak.isActive = true")
     List<ExchangeApiKey> findActiveByUserId(Long userId);
 
     /**
      * 사용자 + 거래소로 활성 API Key 조회
      */
-    Optional<ExchangeApiKey> findByUserIdAndExchangeNameAndIsActiveTrue(Long userId, ExchangeName exchangeName);
+    Optional<ExchangeApiKey> findByUser_UserIdAndExchangeNameAndIsActiveTrue(Long userId, ExchangeName exchangeName);
 }

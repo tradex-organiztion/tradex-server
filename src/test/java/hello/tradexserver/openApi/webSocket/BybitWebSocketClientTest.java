@@ -4,6 +4,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Value;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -18,8 +19,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 class BybitWebSocketClientTest {
 
     // TODO: 실제 테스트 시 본인의 API 키로 교체
-    private static final String API_KEY = "hbctS1VCrYwFoguQPh";
-    private static final String API_SECRET = "WZIlYJYSclF2hVGtmLHbePHinT6Jnju8xaqg";
+
+    private static final String API_KEY = "8Tu8vnf519FRxaOrCw";
+    private static final String API_SECRET = "WxH5O2jwD3BzjEmfeXRi82fPSzaTZmvBlvWA";
     private static final Long TEST_USER_ID = 1L;
 
     private BybitWebSocketClient webSocketClient;

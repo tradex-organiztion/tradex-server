@@ -1,14 +1,14 @@
 package hello.tradexserver.service;
 
-import hello.tradexserver.openApi.ByBitExchangeService;
+import hello.tradexserver.openApi.rest.ByBitRestClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.client.RestTemplate;
 
 //@Disabled("수동 테스트 - 실행하려면 @Disabled 주석 처리")
-class ByBitExchangeServiceTest {
+class ByBitRestClientTest {
 
-    private ByBitExchangeService byBitExchangeService;
+    private ByBitRestClient byBitRestClient;
 
     // TODO: 실제 테스트 시 본인의 API 키로 교체
     private static final String API_KEY = "hbctS1VCrYwFoguQPh";
@@ -17,7 +17,7 @@ class ByBitExchangeServiceTest {
     @BeforeEach
     void setUp() {
         RestTemplate restTemplate = new RestTemplate();
-        byBitExchangeService = new ByBitExchangeService(API_KEY, API_SECRET, restTemplate);
+        byBitRestClient = new ByBitRestClient(API_KEY, API_SECRET, restTemplate);
     }
 
     @Test
@@ -26,6 +26,6 @@ class ByBitExchangeServiceTest {
         int limit = 50;
 
         // when & then - 로그로 결과 확인
-        byBitExchangeService.getPositions(limit);
+        byBitRestClient.getPositions(limit);
     }
 }

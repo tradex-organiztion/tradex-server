@@ -1,4 +1,4 @@
-package hello.tradexserver.openApi;
+package hello.tradexserver.openApi.rest;
 
 import hello.tradexserver.domain.enums.ExchangeName;
 import lombok.RequiredArgsConstructor;
@@ -11,11 +11,11 @@ public class ExchangeFactory {
 
     private final RestTemplate restTemplate;
 
-    public ExchangeService getExchangeService(ExchangeName exchangeName,
-                                              String apiKey,
-                                              String apiSecret) {
+    public ExchangeRestClient getExchangeService(ExchangeName exchangeName,
+                                                 String apiKey,
+                                                 String apiSecret) {
         return switch(exchangeName) {
-            case BYBIT -> new ByBitExchangeService(apiKey, apiSecret, restTemplate);
+            case BYBIT -> new ByBitRestClient(apiKey, apiSecret, restTemplate);
         };
     }
 }

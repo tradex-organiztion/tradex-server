@@ -1,8 +1,10 @@
-package hello.tradexserver.openApi;
+package hello.tradexserver.service;
 
 import hello.tradexserver.domain.ExchangeApiKey;
 import hello.tradexserver.domain.Position;
 import hello.tradexserver.dto.response.PositionResponse;
+import hello.tradexserver.openApi.rest.ExchangeFactory;
+import hello.tradexserver.openApi.rest.ExchangeRestClient;
 import hello.tradexserver.repository.ExchangeApiKeyRepository;
 import hello.tradexserver.repository.PositionRepository;
 import lombok.RequiredArgsConstructor;
@@ -44,7 +46,7 @@ public class TradingService {
         // 각 거래소에서 포지션 조회 (API 호출)
         apiKeys.forEach(apiKey -> {
 
-            ExchangeService exchange = exchangeFactory.getExchangeService(
+            ExchangeRestClient exchange = exchangeFactory.getExchangeService(
                     apiKey.getExchangeName(),
                     apiKey.getApiKey(),
                     apiKey.getApiSecret()

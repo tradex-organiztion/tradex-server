@@ -1,14 +1,12 @@
-package hello.tradexserver.openApi;
+package hello.tradexserver.openApi.rest;
 
 import hello.tradexserver.domain.Order;
 import hello.tradexserver.dto.response.PositionResponse;
-import hello.tradexserver.openApi.webSocket.PositionListener;
 
 import java.util.List;
 
-public interface ExchangeService {
+public interface ExchangeRestClient {
 
     List<PositionResponse> getPositions(int limit);
     List<Order> getOrders();
-    void subscribePositionUpdates(PositionListener listener);
 }

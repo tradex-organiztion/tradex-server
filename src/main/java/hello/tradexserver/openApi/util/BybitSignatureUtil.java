@@ -7,9 +7,10 @@ public class BybitSignatureUtil {
 
     /**
      * Bybit V5 WebSocket 인증용 서명 생성
+     * payload = "GET/realtime" + expires
      */
-    public static String generateSignature(String apiSecret, String timestamp) throws Exception {
-        String payload = timestamp;
+    public static String generateSignature(String apiSecret, String expires) throws Exception {
+        String payload = "GET/realtime" + expires;
 
         Mac mac = Mac.getInstance("HmacSHA256");
         SecretKeySpec secretKey = new SecretKeySpec(

@@ -1,6 +1,6 @@
 package hello.tradexserver.controller;
 
-import hello.tradexserver.openApi.TradingService;
+import hello.tradexserver.service.TradingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
