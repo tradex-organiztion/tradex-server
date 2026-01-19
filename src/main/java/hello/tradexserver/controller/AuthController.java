@@ -28,11 +28,15 @@ public class AuthController {
     private final AuthService authService;
     private final UserRepository userRepository;
 
-    @Operation(summary = "SMS 인증번호 발송", description = "회원가입 또는 아이디 찾기를 위한 SMS 인증번호를 발송합니다. type: SIGNUP(회원가입), FIND_EMAIL(아이디찾기)")
+    @Operation(summary = "SMS 인증번호 발송", description = """
+            회원가입 또는 아이디 찾기를 위한 SMS 인증번호를 발송합니다.
+
+            - type: SIGNUP(회원가입), FIND_EMAIL(아이디찾기)
+            - 아이디 찾기 시 미가입 번호는 보안을 위해 SMS 미발송 후 200 반환
+            """)
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "인증번호 발송 성공"),
-            @ApiResponse(responseCode = "409", description = "이미 등록된 전화번호 (회원가입 시)"),
-            @ApiResponse(responseCode = "404", description = "등록되지 않은 전화번호 (아이디 찾기 시)")
+            @ApiResponse(responseCode = "200", description = "요청 처리 완료"),
+            @ApiResponse(responseCode = "409", description = "이미 등록된 전화번호 (회원가입 시)")
     })
     @PostMapping("/send-sms")
     public ResponseEntity<MessageResponse> sendSms(@Valid @RequestBody SendSmsRequest request) {
@@ -114,11 +118,13 @@ public class AuthController {
         return ResponseEntity.ok(response);
     }
 
-    @Operation(summary = "아이디(이메일) 찾기", description = "전화번호 인증 후 등록된 이메일을 마스킹하여 반환합니다. SMS 인증이 선행되어야 합니다.")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "아이디 찾기 성공"),
-            @ApiResponse(responseCode = "404", description = "등록된 전화번호가 없음")
-    })
+    @Operation(summary = "아이디(이메일) 찾기", description = """
+            전화번호 인증 후 등록된 이메일을 마스킹하여 반환합니다.
+
+            - SMS 인증이 선행되어야 합니다.
+            - 보안을 위해 미가입 번호도 200 반환 (maskedEmail: null)
+            """)
+    @ApiResponse(responseCode = "200", description = "요청 처리 완료 (maskedEmail이 null이면 미가입)")
     @PostMapping("/find-email")
     public ResponseEntity<FindEmailResponse> findEmail(@Valid @RequestBody FindEmailRequest request) {
         FindEmailResponse response = authService.findEmail(request);

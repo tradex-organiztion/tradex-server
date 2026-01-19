@@ -78,9 +78,10 @@ public class AuthService {
             throw new AuthException(ErrorCode.PHONE_ALREADY_EXISTS);
         }
 
-        // 아이디 찾기 시에는 등록된 전화번호인지 확인
+        // 보안: 아이디 찾기 시 미가입 번호면 조용히 리턴 (SMS 미발송, 200 반환)
         if (type == VerificationType.FIND_EMAIL && !userRepository.existsByPhoneNumber(request.getPhoneNumber())) {
-            throw new AuthException(ErrorCode.PHONE_NOT_FOUND);
+            log.info("SMS skipped for phone: {} (not registered)", request.getPhoneNumber());
+            return;
         }
 
         verificationService.sendVerificationCode(request.getPhoneNumber(), type);
@@ -92,8 +93,13 @@ public class AuthService {
     }
 
     public FindEmailResponse findEmail(FindEmailRequest request) {
-        User user = userRepository.findByPhoneNumber(request.getPhoneNumber())
-                .orElseThrow(() -> new AuthException(ErrorCode.PHONE_NOT_FOUND));
+        // 보안: 전화번호 존재 여부를 노출하지 않기 위해 항상 200 반환
+        User user = userRepository.findByPhoneNumber(request.getPhoneNumber()).orElse(null);
+
+        if (user == null) {
+            log.info("Find email skipped for phone: {} (not registered)", request.getPhoneNumber());
+            return FindEmailResponse.builder().maskedEmail(null).build();
+        }
 
         String maskedEmail = maskEmail(user.getEmail());
         return FindEmailResponse.builder().maskedEmail(maskedEmail).build();
