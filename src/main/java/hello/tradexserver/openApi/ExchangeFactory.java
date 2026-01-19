@@ -1,4 +1,4 @@
-package hello.tradexserver.service;
+package hello.tradexserver.openApi;
 
 import hello.tradexserver.domain.enums.ExchangeName;
 import lombok.RequiredArgsConstructor;

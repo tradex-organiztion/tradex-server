@@ -1,4 +1,4 @@
-package hello.tradexserver.service;
+package hello.tradexserver.openApi.webSocket;
 
 import hello.tradexserver.domain.Position;
 

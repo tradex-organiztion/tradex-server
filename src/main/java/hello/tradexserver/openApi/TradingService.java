@@ -1,8 +1,7 @@
-package hello.tradexserver.service;
+package hello.tradexserver.openApi;
 
 import hello.tradexserver.domain.ExchangeApiKey;
 import hello.tradexserver.domain.Position;
-import hello.tradexserver.domain.enums.ExchangeName;
 import hello.tradexserver.dto.response.PositionResponse;
 import hello.tradexserver.repository.ExchangeApiKeyRepository;
 import hello.tradexserver.repository.PositionRepository;
@@ -14,9 +13,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 @RequiredArgsConstructor
 @Service

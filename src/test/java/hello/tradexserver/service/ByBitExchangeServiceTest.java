@@ -1,7 +1,7 @@
 package hello.tradexserver.service;
 
+import hello.tradexserver.openApi.ByBitExchangeService;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.client.RestTemplate;
 

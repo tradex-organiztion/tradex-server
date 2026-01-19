@@ -61,6 +61,7 @@ dependencies {
     implementation 'org.webjars:stomp-websocket:2.3.3'
 
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
+    //WebSocket client (외부 연결용)
     implementation 'org.java-websocket:Java-WebSocket:1.5.4'
 }
 
