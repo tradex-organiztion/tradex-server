@@ -22,6 +22,9 @@ public class User extends BaseTimeEntity {
     @Column(unique = true, nullable = false)
     private String email;
 
+    @Column(unique = true)
+    private String phoneNumber;
+
     private String passwordHash;
 
     @Column(nullable = false, length = 100)
