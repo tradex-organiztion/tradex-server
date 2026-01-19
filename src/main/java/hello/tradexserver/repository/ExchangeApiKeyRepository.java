@@ -13,6 +13,8 @@ public interface ExchangeApiKeyRepository extends JpaRepository<ExchangeApiKey, 
 
     List<ExchangeApiKey> findByUser(User user);
 
+    List<ExchangeApiKey> findByUser_UserId(Long userId);
+
     Optional<ExchangeApiKey> findByUserAndExchangeName(User user, String exchangeName);
 
     boolean existsByUserAndExchangeName(User user, String exchangeName);

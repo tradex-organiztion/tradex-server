@@ -1,5 +1,6 @@
 package hello.tradexserver.domain;
 
+import hello.tradexserver.domain.enums.ExchangeName;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -28,8 +29,9 @@ public class ExchangeApiKey {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 50)
-    private String exchangeName;
+    private ExchangeName exchangeName;
 
     @Column(nullable = false, length = 500)
     private String apiKey;

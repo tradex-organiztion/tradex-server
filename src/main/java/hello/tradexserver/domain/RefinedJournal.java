@@ -55,8 +55,8 @@ public class RefinedJournal {
     @Column(columnDefinition = "TEXT")
     private String refinedText;
 
-    @Column(columnDefinition = "vector(1536)")
-    private PGvector refinedEmbedding;
+    //@Column(columnDefinition = "vector(1536)")
+    //private PGvector refinedEmbedding;
 
     @CreatedDate
     @Column(updatable = false)

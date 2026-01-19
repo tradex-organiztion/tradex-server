@@ -54,6 +54,14 @@ dependencies {
 
     // Swagger (SpringDoc OpenAPI)
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.7.0'
+
+    // WebSocket
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
+    implementation 'org.webjars:sockjs-client:1.5.1'
+    implementation 'org.webjars:stomp-websocket:2.3.3'
+
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'
+    implementation 'org.java-websocket:Java-WebSocket:1.5.4'
 }
 
 tasks.named('test') {

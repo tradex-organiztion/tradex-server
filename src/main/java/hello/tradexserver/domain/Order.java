@@ -1,5 +1,6 @@
 package hello.tradexserver.domain;
 
+import hello.tradexserver.domain.enums.ExchangeName;
 import hello.tradexserver.domain.enums.OrderSide;
 import hello.tradexserver.domain.enums.OrderStatus;
 import hello.tradexserver.domain.enums.OrderType;
@@ -34,6 +35,9 @@ public class Order {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
+
+    @Enumerated(EnumType.STRING)
+    private ExchangeName exchangeName;
 
     private String exchangeOrderId;
 
