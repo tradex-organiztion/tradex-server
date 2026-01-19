@@ -15,7 +15,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Bybit WebSocket 연결 테스트
  * 실제 API 키를 사용하여 WebSocket 연결을 테스트합니다.
  */
-//@Disabled("수동 테스트 - 실행하려면 @Disabled 주석 처리")
+@Disabled("수동 테스트 - 실행하려면 @Disabled 주석 처리")
 class BybitWebSocketClientTest {
 
     // TODO: 실제 테스트 시 본인의 API 키로 교체

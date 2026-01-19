@@ -2,10 +2,11 @@ package hello.tradexserver.service;
 
 import hello.tradexserver.openApi.rest.ByBitRestClient;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.client.RestTemplate;
 
-//@Disabled("수동 테스트 - 실행하려면 @Disabled 주석 처리")
+@Disabled("수동 테스트 - 실행하려면 @Disabled 주석 처리")
 class ByBitRestClientTest {
 
     private ByBitRestClient byBitRestClient;
