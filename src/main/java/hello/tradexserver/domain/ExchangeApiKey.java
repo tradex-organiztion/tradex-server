@@ -1,5 +1,6 @@
 package hello.tradexserver.domain;
 
+import hello.tradexserver.common.converter.EncryptedStringConverter;
 import hello.tradexserver.domain.enums.ExchangeName;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -33,9 +34,11 @@ public class ExchangeApiKey {
     @Column(nullable = false, length = 50)
     private ExchangeName exchangeName;
 
+    @Convert(converter = EncryptedStringConverter.class)
     @Column(nullable = false, length = 500)
     private String apiKey;
 
+    @Convert(converter = EncryptedStringConverter.class)
     @Column(nullable = false, length = 500)
     private String apiSecret;
 
