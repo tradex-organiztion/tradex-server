@@ -55,6 +55,12 @@ dependencies {
 
     // Swagger (SpringDoc OpenAPI)
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.7.0'
+
+    // Mail (Gmail SMTP)
+    implementation 'org.springframework.boot:spring-boot-starter-mail'
+
+    // CoolSMS
+    implementation 'net.nurigo:sdk:4.3.0'
 }
 
 tasks.named('test') {
