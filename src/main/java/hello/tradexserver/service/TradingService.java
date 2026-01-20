@@ -52,6 +52,8 @@ public class TradingService {
                     apiKey.getApiSecret()
             );
 
+            //
+
 //            List<PositionResponse> positions = exchange.getPositions();
 //            allPositions.addAll(positions);
         });
