@@ -240,7 +240,7 @@ public class AuthService {
 
     private AuthResponse generateTokens(User user) {
         String accessToken = jwtTokenProvider.generateAccessToken(
-                user.getUserId(), user.getEmail()
+                user.getId(), user.getEmail()
         );
         String refreshToken = jwtTokenProvider.generateRefreshToken();
 

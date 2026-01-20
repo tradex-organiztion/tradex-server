@@ -31,7 +31,7 @@ public class TradingService {
         Pageable pageable = PageRequest.of(page, size);
 
         Page<Position> positions;
-        positions = positionRepository.findByUser_UserId(userId, pageable);
+        positions = positionRepository.findByUserId(userId, pageable);
 
         log.info("Returning positions from cache for user: {}", userId);
         return positions.map(PositionResponse::from);
@@ -39,7 +39,7 @@ public class TradingService {
 
     // 사용자의 거래소에서 과거 포지션 동기화
     public void syncAllPositions(Long userId, int page, int size) {
-        List<ExchangeApiKey> apiKeys = exchangeApiKeyRepository.findByUser_UserId(userId);
+        List<ExchangeApiKey> apiKeys = exchangeApiKeyRepository.findByUserId(userId);
 
         List<PositionResponse> allPositions = new ArrayList<>();
 

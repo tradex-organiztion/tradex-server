@@ -24,7 +24,7 @@ public class ExchangeApiKey {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long apiKeyId;
+    private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)

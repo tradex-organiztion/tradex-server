@@ -37,8 +37,8 @@ public class PositionResponse {
 
     public static PositionResponse from(Position position) {
         return PositionResponse.builder()
-                .positionId(position.getPositionId())
-                .userId(position.getUser().getUserId())
+                .positionId(position.getId())
+                .userId(position.getUser().getId())
                 .exchangeName(position.getExchangeName())
                 .symbol(position.getSymbol())
                 .side(position.getSide())

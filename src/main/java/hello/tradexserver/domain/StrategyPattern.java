@@ -31,7 +31,7 @@ public class StrategyPattern {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long patternId;
+    private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)

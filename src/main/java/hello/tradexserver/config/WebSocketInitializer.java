@@ -38,14 +38,14 @@ public class WebSocketInitializer {
             activeApiKeys.forEach(apiKey -> {
                 try {
                     exchangeWebSocketManager.connectUser(
-                            apiKey.getUser().getUserId(),
+                            apiKey.getUser().getId(),
                             apiKey
                     );
                     log.info("WebSocket initialized - UserId: {}, Exchange: {}",
-                            apiKey.getUser().getUserId(), apiKey.getExchangeName());
+                            apiKey.getUser().getId(), apiKey.getExchangeName());
                 } catch (Exception e) {
                     log.error("Failed to initialize WebSocket for user: {}, exchange: {}",
-                            apiKey.getUser().getUserId(), apiKey.getExchangeName(), e);
+                            apiKey.getUser().getId(), apiKey.getExchangeName(), e);
                 }
             });
 
