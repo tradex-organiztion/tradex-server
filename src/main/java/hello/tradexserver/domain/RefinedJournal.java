@@ -25,7 +25,7 @@ public class RefinedJournal {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long refinedId;
+    private Long id;
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "journal_id", unique = true, nullable = false)
@@ -55,8 +55,8 @@ public class RefinedJournal {
     @Column(columnDefinition = "TEXT")
     private String refinedText;
 
-    @Column(columnDefinition = "vector(1536)")
-    private PGvector refinedEmbedding;
+    //@Column(columnDefinition = "vector(1536)")
+    //private PGvector refinedEmbedding;
 
     @CreatedDate
     @Column(updatable = false)

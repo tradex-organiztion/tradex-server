@@ -21,7 +21,7 @@ public class CustomUserDetails implements UserDetails {
 
     public static CustomUserDetails from(User user) {
         return new CustomUserDetails(
-                user.getUserId(),
+                user.getId(),
                 user.getEmail(),
                 user.getPasswordHash(),
                 Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER"))

@@ -1,5 +1,7 @@
 package hello.tradexserver.domain;
 
+import hello.tradexserver.common.converter.EncryptedStringConverter;
+import hello.tradexserver.domain.enums.ExchangeName;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -22,18 +24,21 @@ public class ExchangeApiKey {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long apiKeyId;
+    private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 50)
-    private String exchangeName;
+    private ExchangeName exchangeName;
 
+    @Convert(converter = EncryptedStringConverter.class)
     @Column(nullable = false, length = 500)
     private String apiKey;
 
+    @Convert(converter = EncryptedStringConverter.class)
     @Column(nullable = false, length = 500)
     private String apiSecret;
 

@@ -26,7 +26,7 @@ public class RiskPattern {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long riskId;
+    private Long id;
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false, unique = true)

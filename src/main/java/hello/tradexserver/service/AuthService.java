@@ -12,6 +12,7 @@ import hello.tradexserver.dto.response.FindEmailResponse;
 import hello.tradexserver.dto.response.UserResponse;
 import hello.tradexserver.exception.AuthException;
 import hello.tradexserver.exception.ErrorCode;
+import hello.tradexserver.openApi.webSocket.ExchangeWebSocketManager;
 import hello.tradexserver.repository.ExchangeApiKeyRepository;
 import hello.tradexserver.repository.PasswordResetTokenRepository;
 import hello.tradexserver.repository.RefreshTokenRepository;
@@ -43,6 +44,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final AuthenticationManager authenticationManager;
+    private final ExchangeWebSocketManager exchangeWebSocketManager;
     private final VerificationService verificationService;
     private final EmailService emailService;
 
@@ -216,6 +218,8 @@ public class AuthService {
             user.updateProfile(request.getUsername(), null);
         }
 
+        // TODO: API Key 검증
+
         // 거래소 API 키 저장
         ExchangeApiKey apiKey = ExchangeApiKey.builder()
                 .user(user)
@@ -229,12 +233,14 @@ public class AuthService {
         user.completeProfile();
         userRepository.save(user);
 
+        exchangeWebSocketManager.connectUser(userId, apiKey);
+
         return UserResponse.from(user);
     }
 
     private AuthResponse generateTokens(User user) {
         String accessToken = jwtTokenProvider.generateAccessToken(
-                user.getUserId(), user.getEmail()
+                user.getId(), user.getEmail()
         );
         String refreshToken = jwtTokenProvider.generateRefreshToken();
 

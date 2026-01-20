@@ -19,7 +19,7 @@ public class TradingJournal extends BaseTimeEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long journalId;
+    private Long id;
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "position_id", unique = true, nullable = false)
@@ -41,8 +41,8 @@ public class TradingJournal extends BaseTimeEntity {
     @Column(columnDefinition = "TEXT")
     private String exitReview;
 
-    @Column(columnDefinition = "vector(1536)")
-    private PGvector originalEmbedding;
+    //@Column(columnDefinition = "vector(1536)")
+    //private PGvector originalEmbedding;
 
     @OneToOne(mappedBy = "tradingJournal", fetch = FetchType.LAZY)
     private RefinedJournal refinedJournal;
