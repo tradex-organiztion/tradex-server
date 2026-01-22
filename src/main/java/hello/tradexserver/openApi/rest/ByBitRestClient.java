@@ -1,7 +1,7 @@
 package hello.tradexserver.openApi.rest;
 
 import hello.tradexserver.domain.Order;
-import hello.tradexserver.dto.response.BybitClosedPnlResponse;
+import hello.tradexserver.openApi.rest.dto.BybitClosedPnlResponse;
 import hello.tradexserver.dto.response.PositionResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

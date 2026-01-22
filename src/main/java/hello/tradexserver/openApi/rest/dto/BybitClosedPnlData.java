@@ -1,4 +1,4 @@
-package hello.tradexserver.dto.response;
+package hello.tradexserver.openApi.rest.dto;
 
 import lombok.Data;
 
