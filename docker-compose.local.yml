@@ -1,0 +1,21 @@
+#  docker-compose -f docker-compose.local.yml up -d
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: tradex-redis-local
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    networks:
+      - tradex-network
+
+volumes:
+  redis-data:
+
+networks:
+  tradex-network:
+    driver: bridge

@@ -70,6 +70,15 @@ dependencies {
 
     // CoolSMS
     implementation 'net.nurigo:sdk:4.3.0'
+
+    // Spring Data Redis
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+
+    // Jedis 클라이언트 (Redis 연결용)
+    implementation 'redis.clients:jedis'
+
+    // Jackson (JSON 직렬화)
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
 }
 
 tasks.named('test') {

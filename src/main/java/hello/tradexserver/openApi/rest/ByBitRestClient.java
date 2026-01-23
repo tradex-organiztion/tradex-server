@@ -13,6 +13,7 @@ import org.springframework.web.client.RestTemplate;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import java.math.BigDecimal;
 import java.util.List;
 
 @Slf4j
@@ -71,6 +72,13 @@ public class ByBitRestClient implements ExchangeRestClient {
     public List<Order> getOrders() {
         // TODO: Bybit API 호출
         return List.of();
+    }
+
+    @Override
+    public BigDecimal getAsset() {
+        // TODO: Bybit API 호출
+        log.info("Bybit getAsset");
+        return null;
     }
 
     private String generateSignature(String timestamp, String recvWindow, String queryString) {
