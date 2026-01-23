@@ -24,7 +24,11 @@ public enum ErrorCode {
 
     // Password Reset
     INVALID_RESET_TOKEN(HttpStatus.BAD_REQUEST, "AUTH011", "유효하지 않거나 만료된 재설정 토큰입니다"),
-    INVALID_VERIFICATION_TYPE(HttpStatus.BAD_REQUEST, "AUTH012", "유효하지 않은 인증 유형입니다");
+    INVALID_VERIFICATION_TYPE(HttpStatus.BAD_REQUEST, "AUTH012", "유효하지 않은 인증 유형입니다"),
+
+    // Notification
+    NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "NOTI001", "알림을 찾을 수 없습니다"),
+    NOTIFICATION_ACCESS_DENIED(HttpStatus.FORBIDDEN, "NOTI002", "해당 알림에 접근 권한이 없습니다");
 
     private final HttpStatus status;
     private final String code;
