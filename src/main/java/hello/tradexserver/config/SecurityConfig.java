@@ -1,5 +1,6 @@
 package hello.tradexserver.config;
 
+import hello.tradexserver.security.JwtAuthenticationEntryPoint;
 import hello.tradexserver.security.jwt.JwtAuthenticationFilter;
 import hello.tradexserver.security.oauth2.CustomOAuth2UserService;
 import hello.tradexserver.security.oauth2.OAuth2AuthenticationFailureHandler;
@@ -29,6 +30,7 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
     private final CustomOAuth2UserService customOAuth2UserService;
     private final OAuth2AuthenticationSuccessHandler oAuth2SuccessHandler;
     private final OAuth2AuthenticationFailureHandler oAuth2FailureHandler;
@@ -56,6 +58,9 @@ public class SecurityConfig {
                                 "/actuator/health"
                         ).permitAll()
                         .anyRequest().authenticated()
+                )
+                .exceptionHandling(exception -> exception
+                        .authenticationEntryPoint(jwtAuthenticationEntryPoint)
                 )
                 .oauth2Login(oauth2 -> oauth2
                         .userInfoEndpoint(userInfo ->
