@@ -66,7 +66,7 @@ public class ChatService {
 
                 // 프롬프트 구성
                 Prompt prompt = buildPrompt(question, files, history);
-                log.info("Sending prompt to user: {}", user.getUsername());
+                log.info("Sending prompt to username: {}", user.getUsername());
 
                 // 스트리밍 호출
                 StringBuilder response = new StringBuilder();
@@ -153,6 +153,7 @@ public class ChatService {
         }
 
         log.info("Prompt text length: {} chars, Images: {}", textContent.length(), mediaList.size());
+//        log.info("Prompt text content: {}", textContent);
 
         // UserMessage 생성 (이미지가 있으면 Media와 함께)
         UserMessage userMessage;
