@@ -82,6 +82,12 @@ dependencies {
     implementation('org.springframework.ai:spring-ai-openai-spring-boot-starter') {
         exclude group: 'io.swagger.core.v3', module: 'swagger-annotations'
     }
+    // PDF 텍스트 추출
+    implementation 'org.apache.pdfbox:pdfbox:3.0.3'
+
+    // 엑셀 파일 처리
+    implementation 'org.apache.poi:poi:5.3.0'
+    implementation 'org.apache.poi:poi-ooxml:5.3.0'
 
     // Swagger 버전 통일 (Spring AI와 SpringDoc 충돌 해결)
     implementation 'io.swagger.core.v3:swagger-annotations-jakarta:2.2.25'
