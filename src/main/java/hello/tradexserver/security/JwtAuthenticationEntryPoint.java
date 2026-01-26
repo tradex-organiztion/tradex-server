@@ -25,6 +25,12 @@ public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
                          HttpServletResponse response,
                          AuthenticationException authException) throws IOException {
 
+        // SSE나 다른 스트리밍 응답이 이미 커밋됐으면 처리하지 않음
+        if (response.isCommitted()) {
+            log.warn("Response already committed, skipping exception handling");
+            return;
+        }
+
         log.warn("Unauthorized request to {}: {}", request.getRequestURI(), authException.getMessage());
 
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
