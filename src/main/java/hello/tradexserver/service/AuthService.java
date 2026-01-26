@@ -150,8 +150,6 @@ public class AuthService {
 
         // 기존 리프레시 토큰 삭제 (보안을 위해 재로그인 요구)
         refreshTokenRepository.deleteByUser(user);
-
-        log.info("Password reset completed for user: {}", user.getEmail());
     }
 
     private VerificationType parseVerificationType(String type) {
