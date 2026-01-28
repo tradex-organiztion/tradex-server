@@ -1,7 +1,6 @@
-package hello.tradexserver.config;
+package hello.tradexserver.openApi.webSocket;
 
 import hello.tradexserver.domain.ExchangeApiKey;
-import hello.tradexserver.openApi.webSocket.ExchangeWebSocketManager;
 import hello.tradexserver.repository.ExchangeApiKeyRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
