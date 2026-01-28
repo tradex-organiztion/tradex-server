@@ -64,11 +64,10 @@ jobs:
               app:
                 image: ${{ secrets.DOCKERHUB_USERNAME }}/tradex-server:latest
                 container_name: tradex-server
-                ports:
-                  - "8080:8080"
+                network_mode: host
                 restart: unless-stopped
                 healthcheck:
-                  test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+                  test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/actuator/health"]
                   interval: 30s
                   timeout: 10s
                   retries: 3
