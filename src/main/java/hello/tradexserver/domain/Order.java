@@ -4,6 +4,7 @@ import hello.tradexserver.domain.enums.ExchangeName;
 import hello.tradexserver.domain.enums.OrderSide;
 import hello.tradexserver.domain.enums.OrderStatus;
 import hello.tradexserver.domain.enums.OrderType;
+import hello.tradexserver.domain.enums.PositionEffect;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -52,6 +53,10 @@ public class Order {
     @Column(nullable = false, length = 20)
     private OrderType orderType;
 
+    @Enumerated(EnumType.STRING)
+    @Column(length = 10)
+    private PositionEffect positionEffect;
+
     @Column(precision = 20, scale = 8)
     private BigDecimal price;
 
@@ -66,6 +71,9 @@ public class Order {
     @Column(length = 20)
     @Builder.Default
     private OrderStatus status = OrderStatus.NEW;
+
+    @Column(precision = 20, scale = 8)
+    private BigDecimal realizedPnl; // 거래 손익
 
     @Column(nullable = false)
     private LocalDateTime orderTime;

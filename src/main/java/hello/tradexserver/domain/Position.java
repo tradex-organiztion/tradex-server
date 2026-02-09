@@ -44,16 +44,28 @@ public class Position {
     @Column(nullable = false, length = 10)
     private PositionSide side; // 포지션 방향 Buy(Long), Sell(Short)
 
-    @Column(nullable = false)
-    private LocalDateTime entryTime; // 포지션이 처음 생성된 타임스탬프
-
     @Column(nullable = false, precision = 20, scale = 8)
     private BigDecimal avgEntryPrice; // 평균 진입 가격
 
     @Column(nullable = false, precision = 20, scale = 8)
-    private BigDecimal closedSize; // 오더 수량
+    private BigDecimal totalSize; // 총 체결 수량
+
+    @Column(nullable = false, precision = 20, scale = 8)
+    private BigDecimal currentSize;
+
+    @Column(precision = 20, scale = 8)
+    private BigDecimal closedSize;
+
+    @Column(precision = 20, scale = 8)
+    private BigDecimal openFee;
+
+    @Column(precision = 20, scale = 8)
+    private BigDecimal closedFee;
 
     private Integer leverage;
+
+    @Column(nullable = false)
+    private LocalDateTime entryTime; // 포지션이 처음 생성된 타임스탬프
 
     private LocalDateTime exitTime; // 청산 날짜 및 시간
 
@@ -69,20 +81,13 @@ public class Position {
     @Column(precision = 20, scale = 8)
     private BigDecimal stopLossPrice; // 손절가
 
-    @Column(precision = 20, scale = 8)
-    private BigDecimal openFee; // 진입 수수료
-
-    @Column(precision = 20, scale = 8)
-    private BigDecimal closedFee; // 청산 수수료
-
     @Enumerated(EnumType.STRING)
     @Column(length = 20)
     private MarketCondition marketCondition;
 
     @Enumerated(EnumType.STRING)
     @Column(length = 20)
-    @Builder.Default
-    private PositionStatus status = PositionStatus.OPEN;
+    private PositionStatus status;
 
     @CreatedDate
     @Column(updatable = false)
@@ -97,4 +102,24 @@ public class Position {
 
     @OneToOne(mappedBy = "position", fetch = FetchType.LAZY)
     private TradingJournal tradingJournal;
+
+    public void updateFromWebSocket(BigDecimal avgEntryPrice, BigDecimal currentSize,
+                                     Integer leverage, BigDecimal realizedPnl) {
+        this.avgEntryPrice = avgEntryPrice;
+        this.currentSize = currentSize;
+        if (leverage != null) this.leverage = leverage;
+        this.realizedPnl = realizedPnl;
+    }
+
+    public void closePosition(BigDecimal avgExitPrice, BigDecimal closedSize,
+                               BigDecimal realizedPnl, BigDecimal closedFee,
+                               LocalDateTime exitTime) {
+        this.avgExitPrice = avgExitPrice;
+        this.closedSize = closedSize;
+        this.realizedPnl = realizedPnl;
+        this.closedFee = closedFee;
+        this.exitTime = exitTime;
+        this.currentSize = BigDecimal.ZERO;
+        this.status = PositionStatus.CLOSED;
+    }
 }

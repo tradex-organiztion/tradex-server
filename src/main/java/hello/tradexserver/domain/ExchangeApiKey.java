@@ -42,10 +42,22 @@ public class ExchangeApiKey {
     @Column(nullable = false, length = 500)
     private String apiSecret;
 
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(length = 500)
+    private String passphrase; // Bitget 전용, 다른 거래소는 null
+
     @Builder.Default
     private Boolean isActive = true;
 
     @CreatedDate
     @Column(updatable = false)
     private LocalDateTime createdAt;
+
+    public void activate() {
+        this.isActive = true;
+    }
+
+    public void deactivate() {
+        this.isActive = false;
+    }
 }

@@ -28,7 +28,12 @@ public enum ErrorCode {
 
     // Notification
     NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "NOTI001", "알림을 찾을 수 없습니다"),
-    NOTIFICATION_ACCESS_DENIED(HttpStatus.FORBIDDEN, "NOTI002", "해당 알림에 접근 권한이 없습니다");
+    NOTIFICATION_ACCESS_DENIED(HttpStatus.FORBIDDEN, "NOTI002", "해당 알림에 접근 권한이 없습니다"),
+
+    // Exchange API Key
+    EXCHANGE_API_KEY_NOT_FOUND(HttpStatus.NOT_FOUND, "EXCH001", "API 키를 찾을 수 없습니다"),
+    EXCHANGE_API_KEY_ALREADY_EXISTS(HttpStatus.CONFLICT, "EXCH002", "해당 거래소의 API 키가 이미 존재합니다"),
+    BITGET_PASSPHRASE_REQUIRED(HttpStatus.BAD_REQUEST, "EXCH003", "Bitget API 키 등록 시 passphrase는 필수입니다");
 
     private final HttpStatus status;
     private final String code;

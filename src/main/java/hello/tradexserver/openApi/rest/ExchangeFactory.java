@@ -13,9 +13,22 @@ public class ExchangeFactory {
 
     public ExchangeRestClient getExchangeService(ExchangeName exchangeName,
                                                  String apiKey,
-                                                 String apiSecret) {
-        return switch(exchangeName) {
+                                                 String apiSecret,
+                                                 String passphrase) {
+        return switch (exchangeName) {
             case BYBIT -> new ByBitRestClient(apiKey, apiSecret, restTemplate);
+            case BINANCE -> new BinanceRestClient(apiKey, apiSecret, restTemplate);
+            case BITGET -> new BitgetRestClient(apiKey, apiSecret, passphrase, restTemplate);
         };
+    }
+
+    public ExchangeRestClient getExchangeService(ExchangeName exchangeName,
+                                                 String apiKey,
+                                                 String apiSecret) {
+        return getExchangeService(exchangeName, apiKey, apiSecret, null);
+    }
+
+    public BinanceRestClient getBinanceRestClient(String apiKey, String apiSecret) {
+        return new BinanceRestClient(apiKey, apiSecret, restTemplate);
     }
 }

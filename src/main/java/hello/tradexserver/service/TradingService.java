@@ -49,7 +49,8 @@ public class TradingService {
             ExchangeRestClient exchange = exchangeFactory.getExchangeService(
                     apiKey.getExchangeName(),
                     apiKey.getApiKey(),
-                    apiKey.getApiSecret()
+                    apiKey.getApiSecret(),
+                    apiKey.getPassphrase()
             );
 
             //
