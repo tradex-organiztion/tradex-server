@@ -1,23 +1,20 @@
 package hello.tradexserver.service;
 
 import hello.tradexserver.domain.DailyStats;
-import hello.tradexserver.domain.ExchangeApiKey;
 import hello.tradexserver.dto.response.portfolio.*;
-import hello.tradexserver.openApi.rest.ExchangeFactory;
-import hello.tradexserver.openApi.rest.ExchangeRestClient;
 import hello.tradexserver.openApi.rest.dto.CoinBalanceDto;
 import hello.tradexserver.openApi.rest.dto.WalletBalanceResponse;
 import hello.tradexserver.repository.DailyStatsRepository;
-import hello.tradexserver.repository.ExchangeApiKeyRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
+
+import static hello.tradexserver.common.util.BigDecimalUtil.*;
 
 @Service
 @RequiredArgsConstructor
@@ -25,57 +22,43 @@ import java.util.stream.Collectors;
 public class PortfolioService {
 
     private final DailyStatsRepository dailyStatsRepository;
-    private final ExchangeApiKeyRepository exchangeApiKeyRepository;
-    private final ExchangeFactory exchangeFactory;
+    private final ExchangeAssetService exchangeAssetService;
 
     /**
      * 포트폴리오 요약 조회
      * - 총 자산, 오늘의 손익, 주간 손익
      */
     public PortfolioSummaryResponse getPortfolioSummary(Long userId) {
-        BigDecimal totalAsset = getTotalAsset(userId);
+        BigDecimal totalAsset = exchangeAssetService.getTotalAsset(userId);
         LocalDate today = LocalDate.now();
 
         // 오늘의 손익
-        BigDecimal todayPnl = BigDecimal.ZERO;
-        BigDecimal todayPnlRate = BigDecimal.ZERO;
-        Optional<DailyStats> todayStats = dailyStatsRepository.findByUserIdAndStatDate(userId, today);
-        if (todayStats.isPresent() && todayStats.get().getRealizedPnl() != null) {
-            todayPnl = todayStats.get().getRealizedPnl();
-        }
+        BigDecimal todayPnl = dailyStatsRepository.findByUserIdAndStatDate(userId, today)
+                .map(DailyStats::getSafeRealizedPnl)
+                .orElse(BigDecimal.ZERO);
 
         // 어제 총 자산으로 오늘 손익률 계산
-        Optional<DailyStats> yesterdayStats = dailyStatsRepository.findByUserIdAndStatDate(userId, today.minusDays(1));
-        if (yesterdayStats.isPresent() && yesterdayStats.get().getTotalAsset() != null
-                && yesterdayStats.get().getTotalAsset().compareTo(BigDecimal.ZERO) > 0) {
-            todayPnlRate = todayPnl
-                    .divide(yesterdayStats.get().getTotalAsset(), 4, RoundingMode.HALF_UP)
-                    .multiply(BigDecimal.valueOf(100));
-        }
+        BigDecimal yesterdayAsset = dailyStatsRepository.findByUserIdAndStatDate(userId, today.minusDays(1))
+                .map(DailyStats::getSafeTotalAsset)
+                .orElse(BigDecimal.ZERO);
+        BigDecimal todayPnlRate = calcRate(todayPnl, yesterdayAsset);
 
         // 주간 손익 (최근 7일)
         LocalDate weekAgo = today.minusDays(6);
-        BigDecimal weeklyPnl = dailyStatsRepository.getWeeklyPnlSum(userId, weekAgo, today);
-        if (weeklyPnl == null) {
-            weeklyPnl = BigDecimal.ZERO;
-        }
+        BigDecimal weeklyPnl = nullToZero(dailyStatsRepository.getWeeklyPnlSum(userId, weekAgo, today));
 
         // 주간 손익률 (7일 전 자산 기준)
-        BigDecimal weeklyPnlRate = BigDecimal.ZERO;
-        Optional<DailyStats> weekAgoStats = dailyStatsRepository.findByUserIdAndStatDate(userId, weekAgo);
-        if (weekAgoStats.isPresent() && weekAgoStats.get().getTotalAsset() != null
-                && weekAgoStats.get().getTotalAsset().compareTo(BigDecimal.ZERO) > 0) {
-            weeklyPnlRate = weeklyPnl
-                    .divide(weekAgoStats.get().getTotalAsset(), 4, RoundingMode.HALF_UP)
-                    .multiply(BigDecimal.valueOf(100));
-        }
+        BigDecimal weekAgoAsset = dailyStatsRepository.findByUserIdAndStatDate(userId, weekAgo)
+                .map(DailyStats::getSafeTotalAsset)
+                .orElse(BigDecimal.ZERO);
+        BigDecimal weeklyPnlRate = calcRate(weeklyPnl, weekAgoAsset);
 
         return PortfolioSummaryResponse.builder()
-                .totalAsset(totalAsset.setScale(2, RoundingMode.HALF_UP))
-                .todayPnl(todayPnl.setScale(2, RoundingMode.HALF_UP))
-                .todayPnlRate(todayPnlRate.setScale(2, RoundingMode.HALF_UP))
-                .weeklyPnl(weeklyPnl.setScale(2, RoundingMode.HALF_UP))
-                .weeklyPnlRate(weeklyPnlRate.setScale(2, RoundingMode.HALF_UP))
+                .totalAsset(scale2(totalAsset))
+                .todayPnl(scale2(todayPnl))
+                .todayPnlRate(scale2(todayPnlRate))
+                .weeklyPnl(scale2(weeklyPnl))
+                .weeklyPnlRate(scale2(weeklyPnlRate))
                 .build();
     }
 
@@ -106,17 +89,15 @@ public class PortfolioService {
         List<DailyStats> stats = dailyStatsRepository.findByUserIdAndStatDateBetween(userId, startDate, endDate);
 
         // 시작일 자산 (수익률 계산 기준)
-        BigDecimal startAsset = BigDecimal.ZERO;
-        Optional<DailyStats> startStats = dailyStatsRepository.findByUserIdAndStatDate(userId, startDate.minusDays(1));
-        if (startStats.isPresent() && startStats.get().getTotalAsset() != null) {
-            startAsset = startStats.get().getTotalAsset();
-        }
+        BigDecimal startAsset = dailyStatsRepository.findByUserIdAndStatDate(userId, startDate.minusDays(1))
+                .map(DailyStats::getSafeTotalAsset)
+                .orElse(BigDecimal.ZERO);
 
         // 일별 데이터 맵
         Map<LocalDate, BigDecimal> pnlMap = stats.stream()
                 .collect(Collectors.toMap(
                         DailyStats::getStatDate,
-                        d -> d.getRealizedPnl() != null ? d.getRealizedPnl() : BigDecimal.ZERO
+                        DailyStats::getSafeRealizedPnl
                 ));
 
         List<CumulativeProfitResponse.DailyProfit> dailyProfits = new ArrayList<>();
@@ -126,33 +107,19 @@ public class PortfolioService {
             BigDecimal dailyPnl = pnlMap.getOrDefault(date, BigDecimal.ZERO);
             cumulativeProfit = cumulativeProfit.add(dailyPnl);
 
-            BigDecimal cumulativeRate = BigDecimal.ZERO;
-            if (startAsset.compareTo(BigDecimal.ZERO) > 0) {
-                cumulativeRate = cumulativeProfit
-                        .divide(startAsset, 4, RoundingMode.HALF_UP)
-                        .multiply(BigDecimal.valueOf(100));
-            }
-
             dailyProfits.add(CumulativeProfitResponse.DailyProfit.builder()
                     .date(date)
-                    .profit(dailyPnl.setScale(2, RoundingMode.HALF_UP))
-                    .cumulativeProfit(cumulativeProfit.setScale(2, RoundingMode.HALF_UP))
-                    .cumulativeProfitRate(cumulativeRate.setScale(2, RoundingMode.HALF_UP))
+                    .profit(scale2(dailyPnl))
+                    .cumulativeProfit(scale2(cumulativeProfit))
+                    .cumulativeProfitRate(scale2(calcRate(cumulativeProfit, startAsset)))
                     .build());
-        }
-
-        BigDecimal totalProfitRate = BigDecimal.ZERO;
-        if (startAsset.compareTo(BigDecimal.ZERO) > 0) {
-            totalProfitRate = cumulativeProfit
-                    .divide(startAsset, 4, RoundingMode.HALF_UP)
-                    .multiply(BigDecimal.valueOf(100));
         }
 
         return CumulativeProfitResponse.builder()
                 .startDate(startDate)
                 .endDate(endDate)
-                .totalProfit(cumulativeProfit.setScale(2, RoundingMode.HALF_UP))
-                .totalProfitRate(totalProfitRate.setScale(2, RoundingMode.HALF_UP))
+                .totalProfit(scale2(cumulativeProfit))
+                .totalProfitRate(scale2(calcRate(cumulativeProfit, startAsset)))
                 .dailyProfits(dailyProfits)
                 .build();
     }
@@ -178,41 +145,30 @@ public class PortfolioService {
         BigDecimal previousAsset = null;
 
         for (DailyStats stat : stats) {
-            BigDecimal currentAsset = stat.getTotalAsset() != null ? stat.getTotalAsset() : BigDecimal.ZERO;
-            BigDecimal dailyReturnRate = BigDecimal.ZERO;
-
-            if (previousAsset != null && previousAsset.compareTo(BigDecimal.ZERO) > 0) {
-                dailyReturnRate = currentAsset.subtract(previousAsset)
-                        .divide(previousAsset, 4, RoundingMode.HALF_UP)
-                        .multiply(BigDecimal.valueOf(100));
-            }
+            BigDecimal currentAsset = stat.getSafeTotalAsset();
+            BigDecimal dailyReturnRate = previousAsset != null
+                    ? calcRate(currentAsset.subtract(previousAsset), previousAsset)
+                    : BigDecimal.ZERO;
 
             dailyAssets.add(AssetHistoryResponse.DailyAsset.builder()
                     .date(stat.getStatDate())
-                    .totalAsset(currentAsset.setScale(2, RoundingMode.HALF_UP))
-                    .dailyReturnRate(dailyReturnRate.setScale(2, RoundingMode.HALF_UP))
+                    .totalAsset(scale2(currentAsset))
+                    .dailyReturnRate(scale2(dailyReturnRate))
                     .build());
 
             previousAsset = currentAsset;
         }
 
-        BigDecimal startAsset = stats.get(0).getTotalAsset() != null ? stats.get(0).getTotalAsset() : BigDecimal.ZERO;
-        BigDecimal endAsset = stats.get(stats.size() - 1).getTotalAsset() != null
-                ? stats.get(stats.size() - 1).getTotalAsset() : BigDecimal.ZERO;
-
-        BigDecimal monthlyReturnRate = BigDecimal.ZERO;
-        if (startAsset.compareTo(BigDecimal.ZERO) > 0) {
-            monthlyReturnRate = endAsset.subtract(startAsset)
-                    .divide(startAsset, 4, RoundingMode.HALF_UP)
-                    .multiply(BigDecimal.valueOf(100));
-        }
+        BigDecimal startAsset = stats.get(0).getSafeTotalAsset();
+        BigDecimal endAsset = stats.get(stats.size() - 1).getSafeTotalAsset();
+        BigDecimal monthlyReturnRate = calcRate(endAsset.subtract(startAsset), startAsset);
 
         return AssetHistoryResponse.builder()
                 .year(year)
                 .month(month)
-                .startAsset(startAsset.setScale(2, RoundingMode.HALF_UP))
-                .endAsset(endAsset.setScale(2, RoundingMode.HALF_UP))
-                .monthlyReturnRate(monthlyReturnRate.setScale(2, RoundingMode.HALF_UP))
+                .startAsset(scale2(startAsset))
+                .endAsset(scale2(endAsset))
+                .monthlyReturnRate(scale2(monthlyReturnRate))
                 .dailyAssets(dailyAssets)
                 .build();
     }
@@ -230,34 +186,30 @@ public class PortfolioService {
         List<DailyProfitResponse.DailyPnl> dailyPnlList = new ArrayList<>();
 
         for (DailyStats stat : stats) {
-            BigDecimal pnl = stat.getRealizedPnl() != null ? stat.getRealizedPnl() : BigDecimal.ZERO;
+            BigDecimal pnl = stat.getSafeRealizedPnl();
             monthlyTotalPnl = monthlyTotalPnl.add(pnl);
             totalWinCount += stat.getWinCount();
             totalLossCount += stat.getLossCount();
 
             dailyPnlList.add(DailyProfitResponse.DailyPnl.builder()
                     .date(stat.getStatDate())
-                    .pnl(pnl.setScale(2, RoundingMode.HALF_UP))
+                    .pnl(scale2(pnl))
                     .winCount(stat.getWinCount())
                     .lossCount(stat.getLossCount())
                     .build());
         }
 
         // 월초 자산 기준 수익률
-        BigDecimal monthlyReturnRate = BigDecimal.ZERO;
-        Optional<DailyStats> firstOfMonth = dailyStatsRepository.findFirstOfMonth(userId, year, month);
-        if (firstOfMonth.isPresent() && firstOfMonth.get().getTotalAsset() != null
-                && firstOfMonth.get().getTotalAsset().compareTo(BigDecimal.ZERO) > 0) {
-            monthlyReturnRate = monthlyTotalPnl
-                    .divide(firstOfMonth.get().getTotalAsset(), 4, RoundingMode.HALF_UP)
-                    .multiply(BigDecimal.valueOf(100));
-        }
+        BigDecimal firstOfMonthAsset = dailyStatsRepository.findFirstOfMonth(userId, year, month)
+                .map(DailyStats::getSafeTotalAsset)
+                .orElse(BigDecimal.ZERO);
+        BigDecimal monthlyReturnRate = calcRate(monthlyTotalPnl, firstOfMonthAsset);
 
         return DailyProfitResponse.builder()
                 .year(year)
                 .month(month)
-                .monthlyTotalPnl(monthlyTotalPnl.setScale(2, RoundingMode.HALF_UP))
-                .monthlyReturnRate(monthlyReturnRate.setScale(2, RoundingMode.HALF_UP))
+                .monthlyTotalPnl(scale2(monthlyTotalPnl))
+                .monthlyReturnRate(scale2(monthlyReturnRate))
                 .totalWinCount(totalWinCount)
                 .totalLossCount(totalLossCount)
                 .dailyPnlList(dailyPnlList)
@@ -268,30 +220,10 @@ public class PortfolioService {
      * 자산 분포 조회
      */
     public AssetDistributionResponse getAssetDistribution(Long userId) {
-        List<ExchangeApiKey> apiKeys = exchangeApiKeyRepository.findActiveByUserId(userId);
+        WalletBalanceResponse walletBalance = exchangeAssetService.getAggregatedWalletBalance(userId);
 
-        List<CoinBalanceDto> allCoins = new ArrayList<>();
-        BigDecimal totalNetAsset = BigDecimal.ZERO;
-
-        for (ExchangeApiKey key : apiKeys) {
-            try {
-                ExchangeRestClient client = exchangeFactory.getExchangeService(
-                        key.getExchangeName(), key.getApiKey(), key.getApiSecret()
-                );
-                WalletBalanceResponse walletBalance = client.getWalletBalance();
-
-                if (walletBalance != null) {
-                    if (walletBalance.getTotalEquity() != null) {
-                        totalNetAsset = totalNetAsset.add(walletBalance.getTotalEquity());
-                    }
-                    if (walletBalance.getCoins() != null) {
-                        allCoins.addAll(walletBalance.getCoins());
-                    }
-                }
-            } catch (Exception e) {
-                log.warn("Failed to get wallet balance from {}: {}", key.getExchangeName(), e.getMessage());
-            }
-        }
+        BigDecimal totalNetAsset = nullToZero(walletBalance.getTotalEquity());
+        List<CoinBalanceDto> allCoins = walletBalance.getCoins() != null ? walletBalance.getCoins() : List.of();
 
         // 동일 코인 합산
         Map<String, CoinBalanceDto> coinMap = new HashMap<>();
@@ -308,45 +240,18 @@ public class PortfolioService {
         // 비중 계산 및 정렬
         final BigDecimal finalTotal = totalNetAsset;
         List<AssetDistributionResponse.CoinBalance> coinBalances = coinMap.values().stream()
-                .map(coin -> {
-                    BigDecimal percentage = BigDecimal.ZERO;
-                    if (finalTotal.compareTo(BigDecimal.ZERO) > 0) {
-                        percentage = coin.getUsdValue()
-                                .divide(finalTotal, 4, RoundingMode.HALF_UP)
-                                .multiply(BigDecimal.valueOf(100));
-                    }
-                    return AssetDistributionResponse.CoinBalance.builder()
-                            .coin(coin.getCoin())
-                            .quantity(coin.getWalletBalance())
-                            .usdValue(coin.getUsdValue().setScale(2, RoundingMode.HALF_UP))
-                            .percentage(percentage.setScale(2, RoundingMode.HALF_UP))
-                            .build();
-                })
+                .map(coin -> AssetDistributionResponse.CoinBalance.builder()
+                        .coin(coin.getCoin())
+                        .quantity(coin.getWalletBalance())
+                        .usdValue(scale2(coin.getUsdValue()))
+                        .percentage(scale2(calcRate(coin.getUsdValue(), finalTotal)))
+                        .build())
                 .sorted((a, b) -> b.getUsdValue().compareTo(a.getUsdValue()))
                 .collect(Collectors.toList());
 
         return AssetDistributionResponse.builder()
-                .totalNetAsset(totalNetAsset.setScale(2, RoundingMode.HALF_UP))
+                .totalNetAsset(scale2(totalNetAsset))
                 .coins(coinBalances)
                 .build();
-    }
-
-    private BigDecimal getTotalAsset(Long userId) {
-        List<ExchangeApiKey> apiKeys = exchangeApiKeyRepository.findActiveByUserId(userId);
-
-        return apiKeys.stream()
-                .map(key -> {
-                    try {
-                        ExchangeRestClient client = exchangeFactory.getExchangeService(
-                                key.getExchangeName(), key.getApiKey(), key.getApiSecret()
-                        );
-                        BigDecimal asset = client.getAsset();
-                        return asset != null ? asset : BigDecimal.ZERO;
-                    } catch (Exception e) {
-                        log.warn("Failed to get asset from {}: {}", key.getExchangeName(), e.getMessage());
-                        return BigDecimal.ZERO;
-                    }
-                })
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 }
