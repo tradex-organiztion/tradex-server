@@ -24,7 +24,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Position {
+public class Position extends BaseTimeEntity{
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -33,6 +33,10 @@ public class Position {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "exchange_api_key_id")
+    private ExchangeApiKey exchangeApiKey;
 
     @Enumerated(EnumType.STRING)
     private ExchangeName exchangeName;
@@ -69,6 +73,8 @@ public class Position {
 
     private LocalDateTime exitTime; // 청산 날짜 및 시간
 
+    private LocalDateTime exchangeUpdateTime;
+
     @Column(precision = 20, scale = 8)
     private BigDecimal avgExitPrice; // 청산 가격
 
@@ -89,10 +95,6 @@ public class Position {
     @Column(length = 20)
     private PositionStatus status;
 
-    @CreatedDate
-    @Column(updatable = false)
-    private LocalDateTime createdAt;
-
     @Column(columnDefinition = "TEXT")
     private String nextPageCursor;
 
@@ -103,6 +105,10 @@ public class Position {
     @OneToOne(mappedBy = "position", fetch = FetchType.LAZY)
     private TradingJournal tradingJournal;
 
+    public void updateStatus(PositionStatus newStatus) {
+        this.status = newStatus;
+    }
+
     public void updateFromWebSocket(BigDecimal avgEntryPrice, BigDecimal currentSize,
                                      Integer leverage, BigDecimal realizedPnl) {
         this.avgEntryPrice = avgEntryPrice;
@@ -111,9 +117,14 @@ public class Position {
         this.realizedPnl = realizedPnl;
     }
 
+    public void closingPosition(LocalDateTime exitTime, PositionStatus status) {
+        this.exitTime = exitTime;
+        this.status = status;
+    }
+
     public void closePosition(BigDecimal avgExitPrice, BigDecimal closedSize,
-                               BigDecimal realizedPnl, BigDecimal closedFee,
-                               LocalDateTime exitTime) {
+                               BigDecimal realizedPnl, BigDecimal closedFee
+                               ) {
         this.avgExitPrice = avgExitPrice;
         this.closedSize = closedSize;
         this.realizedPnl = realizedPnl;

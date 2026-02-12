@@ -1,28 +1,25 @@
-package hello.tradexserver.openApi.rest.dto;
+package hello.tradexserver.openApi.webSocket.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;
 
 @Data
-public class BybitOrderHistory {
+@JsonIgnoreProperties(ignoreUnknown = true)
+public class BybitOrderData {
+    private String category;
     private String orderId;
     private String orderLinkId;
     private String symbol;
-    private String price;
-    private String qty;
     private String side;
+    private Integer positionIdx;
     private String orderStatus;
+    private String orderType;
     private String avgPrice;
-    private String leavesQty;
     private String cumExecQty;
     private String cumExecValue;
     private String cumExecFee;
-    private String orderType;
-    private String stopOrderType;
-    private String triggerPrice;
-    private String takeProfit;
-    private String stopLoss;
+    private String closedPnl;
     private Boolean reduceOnly;
-    private Integer positionIdx;
     private String createdTime;
     private String updatedTime;
 }

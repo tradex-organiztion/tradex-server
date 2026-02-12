@@ -1,6 +1,7 @@
 package hello.tradexserver.openApi.rest;
 
 import hello.tradexserver.domain.enums.ExchangeName;
+import hello.tradexserver.openApi.rest.bybit.BybitRestClient;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
@@ -10,13 +11,14 @@ import org.springframework.web.client.RestTemplate;
 public class ExchangeFactory {
 
     private final RestTemplate restTemplate;
+    private final BybitRestClient bybitRestClient;
 
     public ExchangeRestClient getExchangeService(ExchangeName exchangeName,
                                                  String apiKey,
                                                  String apiSecret,
                                                  String passphrase) {
         return switch (exchangeName) {
-            case BYBIT -> new ByBitRestClient(apiKey, apiSecret, restTemplate);
+            case BYBIT -> bybitRestClient;
             case BINANCE -> new BinanceRestClient(apiKey, apiSecret, restTemplate);
             case BITGET -> new BitgetRestClient(apiKey, apiSecret, passphrase, restTemplate);
         };

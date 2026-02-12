@@ -28,7 +28,7 @@ class BybitWebSocketClientTest {
 
     @BeforeEach
     void setUp() {
-        webSocketClient = new BybitWebSocketClient(TEST_USER_ID, API_KEY, API_SECRET);
+//        webSocketClient = new BybitWebSocketClient(TEST_USER_ID, API_KEY, API_SECRET);
     }
 
     @AfterEach

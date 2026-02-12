@@ -18,6 +18,7 @@ public class ExchangeWebSocketManager {
 
     private final RestTemplate restTemplate;
     private final PositionListener positionListener;
+    private final OrderListener orderListener;
 
     public void connectUser(Long userId, ExchangeApiKey apiKey) {
         String webSocketKey = generateWebSocketKey(userId, apiKey.getExchangeName().name());
@@ -31,6 +32,9 @@ public class ExchangeWebSocketManager {
 
             if (positionListener != null) {
                 client.setPositionListener(positionListener);
+            }
+            if (orderListener != null) {
+                client.setOrderListener(orderListener);
             }
 
             client.connect();
@@ -69,9 +73,7 @@ public class ExchangeWebSocketManager {
         String exchange = apiKey.getExchangeName().name();
 
         if ("BYBIT".equalsIgnoreCase(exchange)) {
-            return new BybitWebSocketClient(
-                    userId, apiKey.getApiKey(), apiKey.getApiSecret()
-            );
+            return new BybitWebSocketClient(userId, apiKey);
         }
 
         if ("BINANCE".equalsIgnoreCase(exchange)) {

@@ -74,7 +74,7 @@ public class DailyStatsService {
                         ExchangeRestClient client = exchangeFactory.getExchangeService(
                                 key.getExchangeName(), key.getApiKey(), key.getApiSecret()
                         );
-                        BigDecimal asset = client.getAsset();
+                        BigDecimal asset = client.getAsset(key);
                         return asset != null ? asset : BigDecimal.ZERO;
                     } catch (Exception e) {
                         // API 호출 실패 시 로깅 후 0 반환

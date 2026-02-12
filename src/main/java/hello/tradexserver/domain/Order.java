@@ -1,10 +1,6 @@
 package hello.tradexserver.domain;
 
-import hello.tradexserver.domain.enums.ExchangeName;
-import hello.tradexserver.domain.enums.OrderSide;
-import hello.tradexserver.domain.enums.OrderStatus;
-import hello.tradexserver.domain.enums.OrderType;
-import hello.tradexserver.domain.enums.PositionEffect;
+import hello.tradexserver.domain.enums.*;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -17,7 +13,13 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "orders")
+@Table(
+    name = "orders",
+    uniqueConstraints = @UniqueConstraint(
+        name = "uk_exchange_order",
+        columnNames = {"exchange_name", "exchange_order_id"}
+    )
+)
 @EntityListeners(AuditingEntityListener.class)
 @Getter
 @NoArgsConstructor
@@ -37,9 +39,15 @@ public class Order {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "exchange_api_key_id", nullable = false)
+    private ExchangeApiKey exchangeApiKey;
+
     @Enumerated(EnumType.STRING)
+    @Column(name = "exchange_name", nullable = false, length = 20)
     private ExchangeName exchangeName;
 
+    @Column(name = "exchange_order_id", nullable = false, length = 100)
     private String exchangeOrderId;
 
     @Column(nullable = false, length = 50)
@@ -58,14 +66,15 @@ public class Order {
     private PositionEffect positionEffect;
 
     @Column(precision = 20, scale = 8)
-    private BigDecimal price;
-
-    @Column(nullable = false, precision = 20, scale = 8)
-    private BigDecimal quantity;
+    @Builder.Default
+    private BigDecimal filledQuantity = BigDecimal.ZERO;
 
     @Column(precision = 20, scale = 8)
     @Builder.Default
-    private BigDecimal filledQuantity = BigDecimal.ZERO;
+    private BigDecimal filledPrice = BigDecimal.ZERO;
+
+    @Column(precision = 20, scale = 8)
+    private BigDecimal cumExecFee;
 
     @Enumerated(EnumType.STRING)
     @Column(length = 20)
@@ -80,7 +89,19 @@ public class Order {
 
     private LocalDateTime fillTime;
 
+    private Integer positionIdx;  // hedge mode 구분용 (0=one-way, 1=buy-hedge, 2=sell-hedge)
+
+    private String orderLinkId;   // 사용자 지정 주문 ID
+
     @CreatedDate
     @Column(updatable = false)
     private LocalDateTime createdAt;
+
+    public void assignToPosition(Position position) {
+        this.position = position;
+    }
+
+    public void updateRealizedPnl(BigDecimal realizedPnl) {
+        this.realizedPnl = realizedPnl;
+    }
 }

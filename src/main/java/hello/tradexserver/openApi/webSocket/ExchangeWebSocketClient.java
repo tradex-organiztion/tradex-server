@@ -12,4 +12,8 @@ public interface ExchangeWebSocketClient {
     boolean isConnected();
     void subscribePosition();
     void setPositionListener(PositionListener listener);
+
+    default void setOrderListener(OrderListener listener) {
+        // 기본 구현: 거래소별 구현체에서 필요 시 오버라이드
+    }
 }
