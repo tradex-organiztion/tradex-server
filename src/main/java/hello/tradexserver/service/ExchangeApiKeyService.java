@@ -3,7 +3,7 @@ package hello.tradexserver.service;
 import hello.tradexserver.domain.ExchangeApiKey;
 import hello.tradexserver.domain.User;
 import hello.tradexserver.domain.enums.ExchangeName;
-import hello.tradexserver.dto.request.AddExchangeApiKeyRequest;
+import hello.tradexserver.dto.request.ExchangeApiKeyRequest;
 import hello.tradexserver.dto.response.ExchangeApiKeyResponse;
 import hello.tradexserver.exception.AuthException;
 import hello.tradexserver.exception.BusinessException;
@@ -32,7 +32,7 @@ public class ExchangeApiKeyService {
     /**
      * API 키 추가
      */
-    public ExchangeApiKeyResponse addApiKey(Long userId, AddExchangeApiKeyRequest request) {
+    public ExchangeApiKeyResponse addApiKey(Long userId, ExchangeApiKeyRequest request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new AuthException(ErrorCode.USER_NOT_FOUND));
 
@@ -156,6 +156,39 @@ public class ExchangeApiKeyService {
 
         // WebSocket 연결
         exchangeWebSocketManager.connectUser(userId, apiKey);
+
+        return ExchangeApiKeyResponse.from(apiKey);
+    }
+
+    /**
+     * API 키 수정 (apiKey, apiSecret, passphrase 변경)
+     * - WS 재연결 수행
+     */
+    public ExchangeApiKeyResponse updateApiKey(Long userId, Long apiKeyId, ExchangeApiKeyRequest request) {
+        ExchangeApiKey apiKey = exchangeApiKeyRepository.findById(apiKeyId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.EXCHANGE_API_KEY_NOT_FOUND));
+
+        if (!apiKey.getUser().getId().equals(userId)) {
+            throw new BusinessException(ErrorCode.EXCHANGE_API_KEY_NOT_FOUND);
+        }
+
+        // Bitget은 passphrase 필수
+        if (apiKey.getExchangeName() == ExchangeName.BITGET
+                && (request.getPassphrase() == null || request.getPassphrase().isBlank())) {
+            throw new BusinessException(ErrorCode.BITGET_PASSPHRASE_REQUIRED);
+        }
+
+        // 기존 WS 연결 해제 후 키 변경
+        exchangeWebSocketManager.disconnectUser(userId, apiKey.getExchangeName().name());
+
+        apiKey.update(request.getApiKey(), request.getApiSecret(), request.getPassphrase());
+        exchangeApiKeyRepository.save(apiKey);
+        log.info("API Key 수정 완료 - userId: {}, apiKeyId: {}, exchange: {}", userId, apiKeyId, apiKey.getExchangeName());
+
+        // 변경된 키로 WS 재연결
+        if (apiKey.getIsActive()) {
+            exchangeWebSocketManager.connectUser(userId, apiKey);
+        }
 
         return ExchangeApiKeyResponse.from(apiKey);
     }

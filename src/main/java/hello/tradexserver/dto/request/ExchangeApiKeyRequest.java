@@ -10,7 +10,7 @@ import lombok.NoArgsConstructor;
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
-public class AddExchangeApiKeyRequest {
+public class ExchangeApiKeyRequest {
 
     @NotNull(message = "거래소 이름은 필수입니다")
     private ExchangeName exchangeName;

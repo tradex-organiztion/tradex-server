@@ -1,7 +1,7 @@
 package hello.tradexserver.controller;
 
 import hello.tradexserver.domain.enums.ExchangeName;
-import hello.tradexserver.dto.request.AddExchangeApiKeyRequest;
+import hello.tradexserver.dto.request.ExchangeApiKeyRequest;
 import hello.tradexserver.dto.response.ApiResponse;
 import hello.tradexserver.dto.response.ExchangeApiKeyResponse;
 import hello.tradexserver.security.CustomUserDetails;
@@ -30,10 +30,22 @@ public class ExchangeApiKeyController {
     @PostMapping
     public ResponseEntity<ApiResponse<ExchangeApiKeyResponse>> addApiKey(
             @AuthenticationPrincipal CustomUserDetails userDetails,
-            @Valid @RequestBody AddExchangeApiKeyRequest request
+            @Valid @RequestBody ExchangeApiKeyRequest request
     ) {
         log.info("API Key 추가 요청 - userId: {}, exchange: {}", userDetails.getUserId(), request.getExchangeName());
         ExchangeApiKeyResponse response = exchangeApiKeyService.addApiKey(userDetails.getUserId(), request);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "API 키 수정", description = "거래소 API 키와 시크릿을 수정합니다. WS가 재연결됩니다.")
+    @PatchMapping("/{apiKeyId}")
+    public ResponseEntity<ApiResponse<ExchangeApiKeyResponse>> updateApiKey(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable Long apiKeyId,
+            @Valid @RequestBody ExchangeApiKeyRequest request
+    ) {
+        log.info("API Key 수정 요청 - userId: {}, apiKeyId: {}", userDetails.getUserId(), apiKeyId);
+        ExchangeApiKeyResponse response = exchangeApiKeyService.updateApiKey(userDetails.getUserId(), apiKeyId, request);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 

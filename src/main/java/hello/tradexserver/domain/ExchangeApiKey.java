@@ -60,4 +60,10 @@ public class ExchangeApiKey {
     public void deactivate() {
         this.isActive = false;
     }
+
+    public void update(String apiKey, String apiSecret, String passphrase) {
+        this.apiKey = apiKey;
+        this.apiSecret = apiSecret;
+        this.passphrase = passphrase;
+    }
 }
