@@ -104,4 +104,14 @@ public class Order {
     public void updateRealizedPnl(BigDecimal realizedPnl) {
         this.realizedPnl = realizedPnl;
     }
+
+    public void update(BigDecimal filledQuantity, BigDecimal filledPrice, BigDecimal cumExecFee,
+                       BigDecimal realizedPnl, LocalDateTime orderTime, LocalDateTime fillTime) {
+        if (filledQuantity != null) this.filledQuantity = filledQuantity;
+        if (filledPrice != null) this.filledPrice = filledPrice;
+        if (cumExecFee != null) this.cumExecFee = cumExecFee;
+        if (realizedPnl != null) this.realizedPnl = realizedPnl;
+        if (orderTime != null) this.orderTime = orderTime;
+        if (fillTime != null) this.fillTime = fillTime;
+    }
 }

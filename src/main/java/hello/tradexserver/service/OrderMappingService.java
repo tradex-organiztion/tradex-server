@@ -24,6 +24,7 @@ public class OrderMappingService {
 
     private final OrderRepository orderRepository;
     private final PositionRepository positionRepository;
+    private final PositionCalculationService positionCalculationService;
 
     /**
      * Position에 관련 Order들을 비동기로 매핑한다.
@@ -85,8 +86,8 @@ public class OrderMappingService {
             allMapped.addAll(exitOrders);
             orderRepository.saveAll(allMapped);
 
-            // 5. 매핑 완료 상태로 변경
-            position.updateStatus(PositionStatus.CLOSED_MAPPED);
+            // 5. 오더 기반 포지션 데이터 계산 및 반영
+            positionCalculationService.recalculateFromOrders(position, filtered);
             positionRepository.save(position);
 
             log.info("[OrderMapping] 매핑 완료 - positionId: {}, 총 {}건", position.getId(), allMapped.size());
@@ -96,6 +97,28 @@ public class OrderMappingService {
             position.updateStatus(PositionStatus.CLOSED_UNMAPPED);
             positionRepository.save(position);
         }
+    }
+
+    /**
+     * 포지션에 연결된 오더가 수정되었을 때 포지션 데이터를 재계산한다.
+     * Order CRUD에서 호출한다.
+     */
+    @Transactional
+    public void recalculatePosition(Long positionId) {
+        Position position = positionRepository.findById(positionId).orElse(null);
+        if (position == null) {
+            log.warn("[OrderMapping] 재계산 대상 Position 없음 - positionId: {}", positionId);
+            return;
+        }
+
+        List<Order> orders = orderRepository.findByPositionId(positionId);
+        if (orders.isEmpty()) {
+            log.warn("[OrderMapping] 연결된 Order 없음 - positionId: {}", positionId);
+            return;
+        }
+
+        positionCalculationService.recalculateFromOrders(position, orders);
+        positionRepository.save(position);
     }
 
     /**

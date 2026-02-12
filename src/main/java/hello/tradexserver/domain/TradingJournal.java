@@ -46,4 +46,12 @@ public class TradingJournal extends BaseTimeEntity {
 
     @OneToOne(mappedBy = "tradingJournal", fetch = FetchType.LAZY)
     private RefinedJournal refinedJournal;
+
+    public void update(BigDecimal plannedTargetPrice, BigDecimal plannedStopLoss,
+                       String entryScenario, String exitReview) {
+        if (plannedTargetPrice != null) this.plannedTargetPrice = plannedTargetPrice;
+        if (plannedStopLoss != null) this.plannedStopLoss = plannedStopLoss;
+        if (entryScenario != null) this.entryScenario = entryScenario;
+        if (exitReview != null) this.exitReview = exitReview;
+    }
 }

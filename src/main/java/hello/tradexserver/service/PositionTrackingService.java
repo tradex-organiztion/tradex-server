@@ -2,6 +2,7 @@ package hello.tradexserver.service;
 
 import hello.tradexserver.domain.ExchangeApiKey;
 import hello.tradexserver.domain.Position;
+import hello.tradexserver.domain.TradingJournal;
 import hello.tradexserver.domain.enums.OrderSide;
 import hello.tradexserver.domain.enums.PositionSide;
 import hello.tradexserver.domain.enums.PositionStatus;
@@ -12,6 +13,7 @@ import hello.tradexserver.openApi.webSocket.PositionListener;
 import hello.tradexserver.repository.ExchangeApiKeyRepository;
 import hello.tradexserver.repository.OrderRepository;
 import hello.tradexserver.repository.PositionRepository;
+import hello.tradexserver.repository.TradingJournalRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -36,6 +38,7 @@ public class PositionTrackingService implements PositionListener {
     private final PositionRepository positionRepository;
     private final OrderRepository orderRepository;
     private final ExchangeApiKeyRepository exchangeApiKeyRepository;
+    private final TradingJournalRepository tradingJournalRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final BybitPositionRestService bybitPositionRestService;
 
@@ -90,7 +93,6 @@ public class PositionTrackingService implements PositionListener {
                     .symbol(wsPosition.getSymbol())
                     .side(wsPosition.getSide())
                     .avgEntryPrice(wsPosition.getAvgEntryPrice())
-                    .totalSize(wsPosition.getTotalSize())
                     .currentSize(wsPosition.getCurrentSize())
                     .leverage(wsPosition.getLeverage())
                     .targetPrice(wsPosition.getTargetPrice())
@@ -101,6 +103,14 @@ public class PositionTrackingService implements PositionListener {
                     .build();
             positionRepository.save(newPosition);
             log.info("[PositionTracking] 신규 Position 저장 - symbol: {}, side: {}", newPosition.getSymbol(), newPosition.getSide());
+
+            // 매매일지 자동 생성
+            TradingJournal journal = TradingJournal.builder()
+                    .position(newPosition)
+                    .user(freshApiKey.getUser())
+                    .build();
+            tradingJournalRepository.save(journal);
+            log.info("[PositionTracking] 매매일지 자동 생성 - positionId: {}", newPosition.getId());
         }
     }
 

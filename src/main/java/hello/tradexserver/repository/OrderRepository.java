@@ -55,6 +55,8 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             @Param("orderSide") OrderSide orderSide
     );
 
+    Optional<Order> findByIdAndUserId(Long id, Long userId);
+
     /**
      * Position 매핑용: apiKey + symbol + 시간 범위로 Order 조회
      */

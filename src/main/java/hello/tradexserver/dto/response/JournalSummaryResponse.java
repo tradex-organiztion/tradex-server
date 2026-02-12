@@ -1,8 +1,8 @@
 package hello.tradexserver.dto.response;
 
 import hello.tradexserver.domain.Position;
+import hello.tradexserver.domain.TradingJournal;
 import hello.tradexserver.domain.enums.ExchangeName;
-import hello.tradexserver.domain.enums.MarketCondition;
 import hello.tradexserver.domain.enums.PositionSide;
 import hello.tradexserver.domain.enums.PositionStatus;
 import lombok.Builder;
@@ -13,47 +13,42 @@ import java.time.LocalDateTime;
 
 @Getter
 @Builder
-public class PositionResponse {
+public class JournalSummaryResponse {
 
+    private Long journalId;
     private Long positionId;
-    private Long userId;
     private ExchangeName exchangeName;
     private String symbol;
     private PositionSide side;
-    private LocalDateTime entryTime;
-    private BigDecimal avgEntryPrice;
     private Integer leverage;
+    private PositionStatus positionStatus;
+    private LocalDateTime entryTime;
     private LocalDateTime exitTime;
+    private BigDecimal avgEntryPrice;
     private BigDecimal avgExitPrice;
     private BigDecimal realizedPnl;
-    private BigDecimal targetPrice;
-    private BigDecimal stopLossPrice;
     private BigDecimal openFee;
     private BigDecimal closedFee;
-    private MarketCondition marketCondition;
-    private PositionStatus status;
     private LocalDateTime createdAt;
 
-    public static PositionResponse from(Position position) {
-        return PositionResponse.builder()
+    public static JournalSummaryResponse from(TradingJournal journal) {
+        Position position = journal.getPosition();
+        return JournalSummaryResponse.builder()
+                .journalId(journal.getId())
                 .positionId(position.getId())
-                .userId(position.getUser().getId())
                 .exchangeName(position.getExchangeName())
                 .symbol(position.getSymbol())
                 .side(position.getSide())
-                .entryTime(position.getEntryTime())
-                .avgEntryPrice(position.getAvgEntryPrice())
                 .leverage(position.getLeverage())
+                .positionStatus(position.getStatus())
+                .entryTime(position.getEntryTime())
                 .exitTime(position.getExitTime())
+                .avgEntryPrice(position.getAvgEntryPrice())
                 .avgExitPrice(position.getAvgExitPrice())
                 .realizedPnl(position.getRealizedPnl())
-                .targetPrice(position.getTargetPrice())
-                .stopLossPrice(position.getStopLossPrice())
                 .openFee(position.getOpenFee())
                 .closedFee(position.getClosedFee())
-                .marketCondition(position.getMarketCondition())
-                .status(position.getStatus())
-                .createdAt(position.getCreatedAt())
+                .createdAt(journal.getCreatedAt())
                 .build();
     }
 }

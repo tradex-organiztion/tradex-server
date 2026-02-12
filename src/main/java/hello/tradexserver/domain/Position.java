@@ -52,13 +52,7 @@ public class Position extends BaseTimeEntity{
     private BigDecimal avgEntryPrice; // 평균 진입 가격
 
     @Column(nullable = false, precision = 20, scale = 8)
-    private BigDecimal totalSize; // 총 체결 수량
-
-    @Column(nullable = false, precision = 20, scale = 8)
     private BigDecimal currentSize;
-
-    @Column(precision = 20, scale = 8)
-    private BigDecimal closedSize;
 
     @Column(precision = 20, scale = 8)
     private BigDecimal openFee;
@@ -98,11 +92,11 @@ public class Position extends BaseTimeEntity{
     @Column(columnDefinition = "TEXT")
     private String nextPageCursor;
 
-    @OneToMany(mappedBy = "position")
+    @OneToMany(mappedBy = "position", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<Order> orders = new ArrayList<>();
 
-    @OneToOne(mappedBy = "position", fetch = FetchType.LAZY)
+    @OneToOne(mappedBy = "position", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     private TradingJournal tradingJournal;
 
     public void updateStatus(PositionStatus newStatus) {
@@ -122,15 +116,30 @@ public class Position extends BaseTimeEntity{
         this.status = status;
     }
 
-    public void closePosition(BigDecimal avgExitPrice, BigDecimal closedSize,
-                               BigDecimal realizedPnl, BigDecimal closedFee
-                               ) {
+    public void update(BigDecimal avgEntryPrice, BigDecimal avgExitPrice,
+                       BigDecimal currentSize, Integer leverage, BigDecimal targetPrice,
+                       BigDecimal stopLossPrice, LocalDateTime entryTime, LocalDateTime exitTime) {
+        if (avgEntryPrice != null) this.avgEntryPrice = avgEntryPrice;
+        if (avgExitPrice != null) this.avgExitPrice = avgExitPrice;
+        if (currentSize != null) this.currentSize = currentSize;
+        if (leverage != null) this.leverage = leverage;
+        if (targetPrice != null) this.targetPrice = targetPrice;
+        if (stopLossPrice != null) this.stopLossPrice = stopLossPrice;
+        if (entryTime != null) this.entryTime = entryTime;
+        if (exitTime != null) this.exitTime = exitTime;
+    }
+
+    public boolean isClosed() {
+        return this.status == PositionStatus.CLOSED_MAPPED || this.status == PositionStatus.CLOSED;
+    }
+
+    public void applyMappingResult(BigDecimal avgExitPrice, BigDecimal realizedPnl,
+                                    BigDecimal closedFee, BigDecimal openFee) {
         this.avgExitPrice = avgExitPrice;
-        this.closedSize = closedSize;
         this.realizedPnl = realizedPnl;
         this.closedFee = closedFee;
-        this.exitTime = exitTime;
+        this.openFee = openFee;
         this.currentSize = BigDecimal.ZERO;
-        this.status = PositionStatus.CLOSED;
+        this.status = PositionStatus.CLOSED_MAPPED;
     }
 }

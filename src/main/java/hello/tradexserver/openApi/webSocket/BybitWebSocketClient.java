@@ -307,7 +307,6 @@ public class BybitWebSocketClient implements ExchangeWebSocketClient {
                     .side(convertSide(data.getSide(), data.getPositionIdx()))
                     .avgEntryPrice(parseBigDecimal(data.getEntryPrice()))
                     .currentSize(parseBigDecimal(data.getSize()))
-                    .totalSize(parseBigDecimal(data.getSize()))
                     .leverage(parseInteger(data.getLeverage()))
                     .targetPrice(parseBigDecimal(data.getTakeProfit()))
                     .stopLossPrice(parseBigDecimal(data.getStopLoss()))

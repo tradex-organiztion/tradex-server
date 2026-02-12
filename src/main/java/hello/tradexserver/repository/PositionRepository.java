@@ -66,4 +66,6 @@ public interface PositionRepository extends JpaRepository<Position, Long> {
           AND p.status = 'OPEN'
         """)
     List<Position> findAllOpenByApiKeyId(@Param("apiKeyId") Long apiKeyId);
+
+    Optional<Position> findByIdAndUserId(Long id, Long userId);
 }

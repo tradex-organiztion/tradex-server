@@ -237,7 +237,6 @@ public class BinanceWebSocketClient implements ExchangeWebSocketClient {
                     .side(side)
                     .avgEntryPrice(parseBigDecimal(posNode.path("ep").asText("0")))
                     .currentSize(positionAmt.abs())
-                    .totalSize(positionAmt.abs())
                     .entryTime(LocalDateTime.ofInstant(
                             Instant.ofEpochMilli(transactionTime), ZoneId.systemDefault()))
                     .status(positionAmt.compareTo(BigDecimal.ZERO) == 0

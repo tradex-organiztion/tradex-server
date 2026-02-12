@@ -1,0 +1,75 @@
+package hello.tradexserver.controller;
+
+import hello.tradexserver.dto.request.JournalRequest;
+import hello.tradexserver.dto.response.ApiResponse;
+import hello.tradexserver.dto.response.JournalDetailResponse;
+import hello.tradexserver.dto.response.JournalSummaryResponse;
+import hello.tradexserver.security.CustomUserDetails;
+import hello.tradexserver.service.TradingJournalService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+
+@Slf4j
+@RestController
+@RequestMapping("/api/journals")
+@RequiredArgsConstructor
+@Tag(name = "TradingJournal", description = "매매일지 조회/수정/삭제")
+public class TradingJournalController {
+
+    private final TradingJournalService tradingJournalService;
+
+    @GetMapping
+    @Operation(summary = "매매일지 목록 조회", description = "포지션 요약 정보를 포함한 매매일지 목록을 페이지네이션으로 조회합니다.")
+    public ResponseEntity<ApiResponse<Page<JournalSummaryResponse>>> getList(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        Page<JournalSummaryResponse> response = tradingJournalService.getList(
+                userDetails.getUserId(), page, size);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @GetMapping("/{journalId}")
+    @Operation(summary = "매매일지 상세 조회", description = "포지션, 오더 목록, 저널 내용을 한 번에 조회합니다.")
+    public ResponseEntity<ApiResponse<JournalDetailResponse>> getDetail(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable Long journalId
+    ) {
+        JournalDetailResponse response = tradingJournalService.getDetail(
+                userDetails.getUserId(), journalId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @PatchMapping("/{journalId}")
+    @Operation(summary = "매매일지 수정", description = "매매일지 내용(계획, 시나리오, 리뷰)을 수정합니다.")
+    public ResponseEntity<ApiResponse<JournalDetailResponse>> update(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable Long journalId,
+            @RequestBody JournalRequest request
+    ) {
+        log.info("[JournalController] 매매일지 수정 요청 - userId: {}, journalId: {}",
+                userDetails.getUserId(), journalId);
+        JournalDetailResponse response = tradingJournalService.update(
+                userDetails.getUserId(), journalId, request);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @DeleteMapping("/{journalId}")
+    @Operation(summary = "매매일지 삭제", description = "매매일지와 연결된 포지션, 오더를 삭제합니다.")
+    public ResponseEntity<ApiResponse<Void>> delete(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable Long journalId
+    ) {
+        log.info("[JournalController] 매매일지 삭제 요청 - userId: {}, journalId: {}",
+                userDetails.getUserId(), journalId);
+        tradingJournalService.delete(userDetails.getUserId(), journalId);
+        return ResponseEntity.ok(ApiResponse.success());
+    }
+}

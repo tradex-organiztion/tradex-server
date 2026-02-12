@@ -257,7 +257,6 @@ public class BitgetWebSocketClient implements ExchangeWebSocketClient {
                     .side(side)
                     .avgEntryPrice(parseBigDecimal(data.getAverageOpenPrice()))
                     .currentSize(totalSize.abs())
-                    .totalSize(totalSize.abs())
                     .leverage(parseInteger(data.getLeverage()))
                     .realizedPnl(parseBigDecimal(data.getAchievedProfits()))
                     .entryTime(parseTimestamp(data.getCTime()))
