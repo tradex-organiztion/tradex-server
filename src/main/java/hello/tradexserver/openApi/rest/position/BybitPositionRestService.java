@@ -1,7 +1,7 @@
 package hello.tradexserver.openApi.rest.position;
 
 import hello.tradexserver.domain.ExchangeApiKey;
-import hello.tradexserver.openApi.rest.bybit.BybitRestClient;
+import hello.tradexserver.openApi.rest.BybitRestClient;
 import hello.tradexserver.openApi.rest.dto.BybitPositionRestItem;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

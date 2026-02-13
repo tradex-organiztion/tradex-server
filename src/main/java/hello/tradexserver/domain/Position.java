@@ -60,6 +60,9 @@ public class Position extends BaseTimeEntity{
     @Column(precision = 20, scale = 8)
     private BigDecimal closedFee;
 
+    @Column(precision = 20, scale = 8)
+    private BigDecimal closedSize;
+
     private Integer leverage;
 
     @Column(nullable = false)
@@ -134,11 +137,13 @@ public class Position extends BaseTimeEntity{
     }
 
     public void applyMappingResult(BigDecimal avgExitPrice, BigDecimal realizedPnl,
-                                    BigDecimal closedFee, BigDecimal openFee) {
+                                    BigDecimal closedFee, BigDecimal openFee,
+                                    BigDecimal closedSize) {
         this.avgExitPrice = avgExitPrice;
         this.realizedPnl = realizedPnl;
         this.closedFee = closedFee;
         this.openFee = openFee;
+        this.closedSize = closedSize;
         this.currentSize = BigDecimal.ZERO;
         this.status = PositionStatus.CLOSED_MAPPED;
     }

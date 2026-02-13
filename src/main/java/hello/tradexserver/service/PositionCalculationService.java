@@ -54,7 +54,7 @@ public class PositionCalculationService {
                 .map(o -> o.getCumExecFee() != null ? o.getCumExecFee() : BigDecimal.ZERO)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        position.applyMappingResult(avgExitPrice, realizedPnl, closedFee, openFee);
+        position.applyMappingResult(avgExitPrice, realizedPnl, closedFee, openFee, closedSize);
 
         log.info("[PositionCalc] 재계산 완료 - positionId: {}, avgExitPrice: {}, realizedPnl: {}, openFee: {}, closedFee: {}",
                 position.getId(), avgExitPrice, realizedPnl, openFee, closedFee);

@@ -37,4 +37,12 @@ public class DailyStats extends BaseTimeEntity{
     private int lossCount;
 
     private BigDecimal totalAsset;         // int → BigDecimal (정밀도)
+
+    public BigDecimal getSafeRealizedPnl() {
+        return realizedPnl != null ? realizedPnl : BigDecimal.ZERO;
+    }
+
+    public BigDecimal getSafeTotalAsset() {
+        return totalAsset != null ? totalAsset : BigDecimal.ZERO;
+    }
 }

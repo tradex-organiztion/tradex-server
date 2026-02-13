@@ -3,7 +3,7 @@ package hello.tradexserver.openApi.rest.order;
 import hello.tradexserver.domain.ExchangeApiKey;
 import hello.tradexserver.domain.Order;
 import hello.tradexserver.domain.enums.*;
-import hello.tradexserver.openApi.rest.bybit.BybitRestClient;
+import hello.tradexserver.openApi.rest.BybitRestClient;
 import hello.tradexserver.openApi.rest.dto.BybitOrderHistory;
 import hello.tradexserver.openApi.rest.dto.BybitOrderHistoryData;
 import lombok.RequiredArgsConstructor;

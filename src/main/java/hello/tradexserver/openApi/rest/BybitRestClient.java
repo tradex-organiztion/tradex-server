@@ -1,7 +1,9 @@
-package hello.tradexserver.openApi.rest.bybit;
+package hello.tradexserver.openApi.rest;
 
+import hello.tradexserver.openApi.rest.dto.BybitClosedPnlResponse;
+import hello.tradexserver.openApi.rest.dto.CoinBalanceDto;
+import hello.tradexserver.openApi.rest.dto.WalletBalanceResponse;
 import hello.tradexserver.domain.ExchangeApiKey;
-import hello.tradexserver.openApi.rest.ExchangeRestClient;
 import hello.tradexserver.openApi.rest.dto.*;
 import hello.tradexserver.openApi.util.BybitSignatureUtil;
 import lombok.RequiredArgsConstructor;
@@ -14,9 +16,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -90,9 +94,102 @@ public class BybitRestClient implements ExchangeRestClient {
 
     @Override
     public BigDecimal getAsset(ExchangeApiKey apiKey) {
-        // TODO: implement
-        log.info("[Bybit] getAsset - TODO");
-        return null;
+        WalletBalanceResponse walletBalance = getWalletBalance(apiKey);
+        if (walletBalance != null && walletBalance.getTotalEquity() != null) {
+            return walletBalance.getTotalEquity();
+        }
+        return BigDecimal.ZERO;
+    }
+
+    @Override
+    public WalletBalanceResponse getWalletBalance(ExchangeApiKey apiKey) {
+        String queryString = "accountType=UNIFIED";
+
+        try {
+            HttpEntity<String> entity = new HttpEntity<>(createSignedHeaders(apiKey, queryString));
+
+            ResponseEntity<Map> responseEntity = restTemplate.exchange(
+                    BASE_URL + "/account/wallet-balance?" + queryString,
+                    HttpMethod.GET,
+                    entity,
+                    Map.class
+            );
+
+            Map<String, Object> response = responseEntity.getBody();
+
+            if (response == null) {
+                log.warn("Bybit wallet-balance 응답 없음");
+                return WalletBalanceResponse.builder()
+                        .totalEquity(BigDecimal.ZERO)
+                        .coins(List.of())
+                        .build();
+            }
+
+            int retCode = (int) response.getOrDefault("retCode", -1);
+            if (retCode != 0) {
+                log.warn("Bybit wallet-balance 에러: {}", response.get("retMsg"));
+                return WalletBalanceResponse.builder()
+                        .totalEquity(BigDecimal.ZERO)
+                        .coins(List.of())
+                        .build();
+            }
+
+            Map<String, Object> result = (Map<String, Object>) response.get("result");
+            if (result == null) {
+                return WalletBalanceResponse.builder()
+                        .totalEquity(BigDecimal.ZERO)
+                        .coins(List.of())
+                        .build();
+            }
+
+            List<Map<String, Object>> accountList = (List<Map<String, Object>>) result.get("list");
+            if (accountList == null || accountList.isEmpty()) {
+                return WalletBalanceResponse.builder()
+                        .totalEquity(BigDecimal.ZERO)
+                        .coins(List.of())
+                        .build();
+            }
+
+            Map<String, Object> account = accountList.get(0);
+            String totalEquityStr = (String) account.get("totalEquity");
+            BigDecimal totalEquity = totalEquityStr != null ? new BigDecimal(totalEquityStr) : BigDecimal.ZERO;
+
+            List<CoinBalanceDto> coinBalances = new ArrayList<>();
+            List<Map<String, Object>> coinList = (List<Map<String, Object>>) account.get("coin");
+
+            if (coinList != null) {
+                for (Map<String, Object> coinData : coinList) {
+                    String coin = (String) coinData.get("coin");
+                    String walletBalanceStr = (String) coinData.get("walletBalance");
+                    String usdValueStr = (String) coinData.get("usdValue");
+
+                    BigDecimal walletBalance = walletBalanceStr != null ? new BigDecimal(walletBalanceStr) : BigDecimal.ZERO;
+                    BigDecimal usdValue = usdValueStr != null ? new BigDecimal(usdValueStr) : BigDecimal.ZERO;
+
+                    if (walletBalance.compareTo(BigDecimal.ZERO) > 0) {
+                        coinBalances.add(CoinBalanceDto.builder()
+                                .coin(coin)
+                                .walletBalance(walletBalance)
+                                .usdValue(usdValue)
+                                .build());
+                    }
+                }
+            }
+
+            log.info("Bybit 지갑 잔고 조회 성공 - 총 자산: {}, 코인 수: {}", totalEquity, coinBalances.size());
+
+            return WalletBalanceResponse.builder()
+                    .totalEquity(totalEquity)
+                    .coins(coinBalances)
+                    .build();
+
+        } catch (Exception e) {
+            log.error("Bybit getWalletBalance 실패", e);
+            return WalletBalanceResponse.builder()
+                    .totalEquity(BigDecimal.ZERO)
+                    .coins(List.of())
+                    .build();
+        }
     }
 
     public BybitClosedPnlData fetchClosedPnl(ExchangeApiKey apiKey, String symbol,

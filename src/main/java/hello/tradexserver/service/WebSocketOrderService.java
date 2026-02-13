@@ -6,7 +6,7 @@ import hello.tradexserver.domain.Position;
 import hello.tradexserver.domain.enums.ExchangeName;
 import hello.tradexserver.domain.enums.OrderStatus;
 import hello.tradexserver.domain.enums.PositionEffect;
-import hello.tradexserver.openApi.rest.bybit.BybitRestClient;
+import hello.tradexserver.openApi.rest.BybitRestClient;
 import hello.tradexserver.openApi.rest.dto.BybitClosedPnl;
 import hello.tradexserver.openApi.rest.dto.BybitClosedPnlData;
 import hello.tradexserver.openApi.rest.order.ExchangeOrderService;

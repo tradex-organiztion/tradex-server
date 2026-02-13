@@ -6,6 +6,7 @@ import hello.tradexserver.domain.ExchangeApiKey;
 import hello.tradexserver.openApi.rest.dto.BinanceAllOrderItem;
 import hello.tradexserver.openApi.rest.dto.BinancePositionRisk;
 import hello.tradexserver.openApi.rest.dto.BinanceUserTrade;
+import hello.tradexserver.openApi.rest.dto.WalletBalanceResponse;
 import hello.tradexserver.openApi.util.BinanceSignatureUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -163,6 +164,12 @@ public class BinanceRestClient implements ExchangeRestClient {
 
     @Override
     public BigDecimal getAsset(ExchangeApiKey apiKey) {
+        // TODO: implement
+        return null;
+    }
+
+    @Override
+    public WalletBalanceResponse getWalletBalance(ExchangeApiKey apiKey) {
         // TODO: implement
         return null;
     }

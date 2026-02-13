@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import hello.tradexserver.domain.ExchangeApiKey;
 import hello.tradexserver.openApi.rest.dto.BitgetOrderHistoryItem;
 import hello.tradexserver.openApi.rest.dto.BitgetPositionItem;
+import hello.tradexserver.openApi.rest.dto.WalletBalanceResponse;
 import hello.tradexserver.openApi.util.BitgetSignatureUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,6 +36,12 @@ public class BitgetRestClient implements ExchangeRestClient {
     public BigDecimal getAsset(ExchangeApiKey apiKey) {
         // TODO: implement
         log.info("[Bitget] getAsset - TODO");
+        return null;
+    }
+
+    @Override
+    public WalletBalanceResponse getWalletBalance(ExchangeApiKey apiKey) {
+        // TODO: implement
         return null;
     }
 
