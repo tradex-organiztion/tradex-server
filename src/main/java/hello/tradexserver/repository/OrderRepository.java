@@ -58,13 +58,14 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     Optional<Order> findByIdAndUserId(Long id, Long userId);
 
     /**
-     * Position 매핑용: apiKey + symbol + 시간 범위로 Order 조회
+     * Position 매핑용: apiKey + symbol + 시간 범위로 미매핑 Order 조회
      */
     @Query("""
         SELECT o FROM Order o
         WHERE o.user.id = :userId
           AND o.exchangeApiKey.id = :apiKeyId
           AND o.symbol = :symbol
+          AND o.position IS NULL
           AND o.fillTime BETWEEN :startTime AND :endTime
         ORDER BY o.fillTime ASC
         """)

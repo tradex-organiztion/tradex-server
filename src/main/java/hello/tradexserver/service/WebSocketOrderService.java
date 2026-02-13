@@ -2,14 +2,17 @@ package hello.tradexserver.service;
 
 import hello.tradexserver.domain.ExchangeApiKey;
 import hello.tradexserver.domain.Order;
+import hello.tradexserver.domain.Position;
+import hello.tradexserver.domain.enums.ExchangeName;
 import hello.tradexserver.domain.enums.OrderStatus;
 import hello.tradexserver.domain.enums.PositionEffect;
 import hello.tradexserver.openApi.rest.bybit.BybitRestClient;
 import hello.tradexserver.openApi.rest.dto.BybitClosedPnl;
 import hello.tradexserver.openApi.rest.dto.BybitClosedPnlData;
-import hello.tradexserver.openApi.rest.order.BybitOrderService;
+import hello.tradexserver.openApi.rest.order.ExchangeOrderService;
 import hello.tradexserver.openApi.webSocket.OrderListener;
 import hello.tradexserver.repository.OrderRepository;
+import hello.tradexserver.repository.PositionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -29,7 +32,8 @@ import java.util.stream.Collectors;
 public class WebSocketOrderService implements OrderListener {
 
     private final OrderRepository orderRepository;
-    private final BybitOrderService bybitOrderService;
+    private final PositionRepository positionRepository;
+    private final Map<String, ExchangeOrderService> orderServiceMap;
     private final BybitRestClient bybitRestClient;
 
     /**
@@ -57,10 +61,26 @@ public class WebSocketOrderService implements OrderListener {
     @Async
     @Transactional
     public void onReconnected(ExchangeApiKey apiKey, LocalDateTime gapStartTime) {
-        log.info("[WSOrder] 재연결 Gap 보완 시작 - apiKeyId: {}, gapStart: {}", apiKey.getId(), gapStartTime);
+        log.info("[WSOrder] 재연결 Gap 보완 시작 - apiKeyId: {}, exchange: {}, gapStart: {}",
+                apiKey.getId(), apiKey.getExchangeName(), gapStartTime);
+
+        String exchangeKey = apiKey.getExchangeName().name();
+        ExchangeOrderService orderService = orderServiceMap.get(exchangeKey);
+        if (orderService == null) {
+            log.warn("[WSOrder] OrderService 없음 - exchange: {}", exchangeKey);
+            return;
+        }
 
         LocalDateTime now = LocalDateTime.now();
-        List<Order> fetched = bybitOrderService.fetchAndConvertOrders(apiKey, null, gapStartTime, now);
+
+        // Binance는 symbol 필수 → DB OPEN 포지션 symbol 기준으로 조회
+        List<Order> fetched;
+        if (apiKey.getExchangeName() == ExchangeName.BINANCE) {
+            fetched = fetchOrdersByOpenPositionSymbols(orderService, apiKey, gapStartTime, now);
+        } else {
+            fetched = orderService.fetchAndConvertOrders(apiKey, null, gapStartTime, now);
+        }
+
         if (fetched.isEmpty()) {
             log.info("[WSOrder] Gap 보완 - 신규 Order 없음");
             return;
@@ -84,14 +104,35 @@ public class WebSocketOrderService implements OrderListener {
         orderRepository.saveAll(toSave);
         log.info("[WSOrder] Gap 보완 저장 완료 - apiKeyId: {}, {}건", apiKey.getId(), toSave.size());
 
-        // close 오더가 있으면 closed-pnl API로 realizedPnl 보완
-        List<Order> closeOrders = toSave.stream()
-                .filter(o -> o.getPositionEffect() == PositionEffect.CLOSE)
-                .collect(Collectors.toList());
-
-        if (!closeOrders.isEmpty()) {
-            supplementClosedPnl(apiKey, closeOrders, gapStartTime, now);
+        // Bybit 전용: close 오더 closed-pnl 보완
+        if (apiKey.getExchangeName() == ExchangeName.BYBIT) {
+            List<Order> closeOrders = toSave.stream()
+                    .filter(o -> o.getPositionEffect() == PositionEffect.CLOSE)
+                    .collect(Collectors.toList());
+            if (!closeOrders.isEmpty()) {
+                supplementClosedPnl(apiKey, closeOrders, gapStartTime, now);
+            }
         }
+    }
+
+    /**
+     * Binance용: DB OPEN 포지션 symbol 기준으로 오더 조회
+     */
+    private List<Order> fetchOrdersByOpenPositionSymbols(ExchangeOrderService orderService,
+                                                          ExchangeApiKey apiKey,
+                                                          LocalDateTime startTime,
+                                                          LocalDateTime endTime) {
+        List<Position> openPositions = positionRepository.findAllOpenByApiKeyId(apiKey.getId());
+        Set<String> symbols = openPositions.stream()
+                .map(Position::getSymbol)
+                .collect(Collectors.toSet());
+
+        List<Order> allOrders = new java.util.ArrayList<>();
+        for (String symbol : symbols) {
+            List<Order> orders = orderService.fetchAndConvertOrders(apiKey, symbol, startTime, endTime);
+            allOrders.addAll(orders);
+        }
+        return allOrders;
     }
 
     /**

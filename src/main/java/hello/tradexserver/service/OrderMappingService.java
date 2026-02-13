@@ -38,12 +38,12 @@ public class OrderMappingService {
         log.info("[OrderMapping] 매핑 시작 - positionId: {}, symbol: {}", position.getId(), position.getSymbol());
 
         try {
-            // 1. 후보 Order 조회 (apiKey + symbol + entryTime ~ exitTime)
+            // 1. 후보 Order 조회 (entryTime - 1초 버퍼 ~ exitTime, 미매핑 오더만)
             List<Order> candidates = orderRepository.findOrdersForMapping(
                     position.getUser().getId(),
                     position.getExchangeApiKey().getId(),
                     position.getSymbol(),
-                    position.getEntryTime(),
+                    position.getEntryTime().minusSeconds(1),
                     position.getExitTime()
             );
 

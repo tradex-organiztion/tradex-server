@@ -3,11 +3,14 @@ package hello.tradexserver.service;
 import hello.tradexserver.domain.ExchangeApiKey;
 import hello.tradexserver.domain.Position;
 import hello.tradexserver.domain.TradingJournal;
+import hello.tradexserver.domain.enums.ExchangeName;
 import hello.tradexserver.domain.enums.OrderSide;
 import hello.tradexserver.domain.enums.PositionSide;
 import hello.tradexserver.domain.enums.PositionStatus;
 import hello.tradexserver.event.PositionCloseEvent;
+import hello.tradexserver.openApi.rest.dto.BinancePositionRisk;
 import hello.tradexserver.openApi.rest.dto.BybitPositionRestItem;
+import hello.tradexserver.openApi.rest.position.BinancePositionRestService;
 import hello.tradexserver.openApi.rest.position.BybitPositionRestService;
 import hello.tradexserver.openApi.webSocket.PositionListener;
 import hello.tradexserver.repository.ExchangeApiKeyRepository;
@@ -22,9 +25,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -41,6 +42,7 @@ public class PositionTrackingService implements PositionListener {
     private final TradingJournalRepository tradingJournalRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final BybitPositionRestService bybitPositionRestService;
+    private final BinancePositionRestService binancePositionRestService;
 
     @Override
     @Transactional
@@ -79,12 +81,19 @@ public class PositionTrackingService implements PositionListener {
             positionRepository.save(existing);
             log.info("[PositionTracking] 기존 Position 업데이트 - id: {}, symbol: {}", existing.getId(), existing.getSymbol());
         } else {
-            // 신규 포지션 저장 - entryTime은 가장 최근 진입 오더의 fillTime 사용 (fallback: now)
-            // LONG 포지션 → BUY 오더, SHORT 포지션 → SELL 오더 (헷지 모드 구분)
-            OrderSide orderSide = wsPosition.getSide() == PositionSide.LONG ? OrderSide.BUY : OrderSide.SELL;
-            LocalDateTime entryTime = orderRepository
-                    .findLatestOpenOrderFillTime(freshApiKey.getId(), wsPosition.getSymbol(), orderSide)
-                    .orElse(LocalDateTime.now());
+            // 신규 포지션 저장 - entryTime 결정 우선순위:
+            // 1. WS에서 전달된 entryTime (Binance "T" 등)
+            // 2. 가장 최근 진입 오더의 fillTime
+            // 3. fallback: now()
+            LocalDateTime entryTime;
+            if (wsPosition.getEntryTime() != null) {
+                entryTime = wsPosition.getEntryTime();
+            } else {
+                OrderSide orderSide = wsPosition.getSide() == PositionSide.LONG ? OrderSide.BUY : OrderSide.SELL;
+                entryTime = orderRepository
+                        .findLatestOpenOrderFillTime(freshApiKey.getId(), wsPosition.getSymbol(), orderSide)
+                        .orElse(LocalDateTime.now());
+            }
 
             Position newPosition = Position.builder()
                     .user(freshApiKey.getUser())
@@ -177,24 +186,29 @@ public class PositionTrackingService implements PositionListener {
         ExchangeApiKey freshApiKey = exchangeApiKeyRepository.findById(apiKey.getId()).orElse(null);
         if (freshApiKey == null) return;
 
-        log.info("[PositionTracking] 재연결 Gap 보완 시작 - apiKeyId: {}", freshApiKey.getId());
+        ExchangeName exchange = freshApiKey.getExchangeName();
+        switch (exchange) {
+            case BYBIT -> reconnectBybit(freshApiKey);
+            case BINANCE -> reconnectBinance(freshApiKey);
+            default -> log.info("[PositionTracking] onReconnected 미구현 거래소: {}", exchange);
+        }
+    }
 
-        // 1. DB의 OPEN 포지션 목록
+    private void reconnectBybit(ExchangeApiKey freshApiKey) {
+        log.info("[PositionTracking] Bybit 재연결 Gap 보완 시작 - apiKeyId: {}", freshApiKey.getId());
+
         List<Position> dbOpenPositions = positionRepository.findAllOpenByApiKeyId(freshApiKey.getId());
         if (dbOpenPositions.isEmpty()) {
             log.info("[PositionTracking] 보완할 OPEN 포지션 없음 - apiKeyId: {}", freshApiKey.getId());
             return;
         }
 
-        // 2. REST에서 현재 오픈 포지션 조회 (symbol 미지정 시 size > 0인 것만 반환)
         List<BybitPositionRestItem> restPositions = bybitPositionRestService.getOpenPositions(freshApiKey);
-
-        // 3. REST 결과를 "symbol_LONG/SHORT" 키로 인덱싱
         Map<String, BybitPositionRestItem> restMap = restPositions.stream()
                 .collect(Collectors.toMap(
-                        p -> p.getSymbol() + "_" + convertSide(p.getSide()),
+                        p -> p.getSymbol() + "_" + convertBybitSide(p.getSide()),
                         p -> p,
-                        (a, b) -> a  // 중복 시 첫 번째 유지 (positionIdx 무관)
+                        (a, b) -> a
                 ));
 
         for (Position dbPos : dbOpenPositions) {
@@ -202,7 +216,6 @@ public class PositionTrackingService implements PositionListener {
             BybitPositionRestItem restPos = restMap.get(key);
 
             if (restPos == null) {
-                // REST에 없음 → WS 끊긴 사이에 종료된 포지션
                 log.info("[PositionTracking] Gap 종료 감지 - positionId: {}, symbol: {}", dbPos.getId(), dbPos.getSymbol());
                 dbPos.closingPosition(LocalDateTime.now(), PositionStatus.CLOSING);
                 positionRepository.save(dbPos);
@@ -210,7 +223,6 @@ public class PositionTrackingService implements PositionListener {
                         .positionId(dbPos.getId())
                         .build());
             } else {
-                // REST에 있음 → 최신 상태로 업데이트
                 dbPos.updateFromWebSocket(
                         parseBigDecimal(restPos.getAvgPrice()),
                         parseBigDecimal(restPos.getSize()),
@@ -222,12 +234,65 @@ public class PositionTrackingService implements PositionListener {
             }
         }
 
-        log.info("[PositionTracking] 재연결 Gap 보완 완료 - apiKeyId: {}, 처리 {}건",
+        log.info("[PositionTracking] Bybit 재연결 Gap 보완 완료 - apiKeyId: {}, 처리 {}건",
                 freshApiKey.getId(), dbOpenPositions.size());
     }
 
-    private String convertSide(String bybitSide) {
+    private void reconnectBinance(ExchangeApiKey freshApiKey) {
+        log.info("[PositionTracking] Binance 재연결 Gap 보완 시작 - apiKeyId: {}", freshApiKey.getId());
+
+        List<Position> dbOpenPositions = positionRepository.findAllOpenByApiKeyId(freshApiKey.getId());
+        if (dbOpenPositions.isEmpty()) {
+            log.info("[PositionTracking] 보완할 OPEN 포지션 없음 - apiKeyId: {}", freshApiKey.getId());
+            return;
+        }
+
+        List<BinancePositionRisk> restPositions = binancePositionRestService.getOpenPositions(freshApiKey);
+        Map<String, BinancePositionRisk> restMap = restPositions.stream()
+                .collect(Collectors.toMap(
+                        p -> p.getSymbol() + "_" + convertBinanceSide(p.getPositionSide(), p.getPositionAmt()),
+                        p -> p,
+                        (a, b) -> a
+                ));
+
+        for (Position dbPos : dbOpenPositions) {
+            String key = dbPos.getSymbol() + "_" + dbPos.getSide().name();
+            BinancePositionRisk restPos = restMap.get(key);
+
+            if (restPos == null) {
+                log.info("[PositionTracking] Gap 종료 감지 - positionId: {}, symbol: {}", dbPos.getId(), dbPos.getSymbol());
+                dbPos.closingPosition(LocalDateTime.now(), PositionStatus.CLOSING);
+                positionRepository.save(dbPos);
+                eventPublisher.publishEvent(PositionCloseEvent.builder()
+                        .positionId(dbPos.getId())
+                        .build());
+            } else {
+                BigDecimal posAmt = parseBigDecimal(restPos.getPositionAmt());
+                dbPos.updateFromWebSocket(
+                        parseBigDecimal(restPos.getEntryPrice()),
+                        posAmt.abs(),
+                        parseInteger(restPos.getLeverage()),
+                        parseBigDecimal(restPos.getUnrealizedProfit())
+                );
+                positionRepository.save(dbPos);
+                log.debug("[PositionTracking] Gap 업데이트 - positionId: {}, symbol: {}", dbPos.getId(), dbPos.getSymbol());
+            }
+        }
+
+        log.info("[PositionTracking] Binance 재연결 Gap 보완 완료 - apiKeyId: {}, 처리 {}건",
+                freshApiKey.getId(), dbOpenPositions.size());
+    }
+
+    private String convertBybitSide(String bybitSide) {
         return "Buy".equalsIgnoreCase(bybitSide) ? PositionSide.LONG.name() : PositionSide.SHORT.name();
+    }
+
+    private String convertBinanceSide(String positionSide, String positionAmt) {
+        if ("LONG".equals(positionSide)) return PositionSide.LONG.name();
+        if ("SHORT".equals(positionSide)) return PositionSide.SHORT.name();
+        // BOTH: amount 부호로 방향 결정
+        BigDecimal amt = parseBigDecimal(positionAmt);
+        return amt.compareTo(BigDecimal.ZERO) >= 0 ? PositionSide.LONG.name() : PositionSide.SHORT.name();
     }
 
     private BigDecimal parseBigDecimal(String value) {

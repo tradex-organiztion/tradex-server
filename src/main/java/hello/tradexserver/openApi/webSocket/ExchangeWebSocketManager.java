@@ -1,10 +1,10 @@
 package hello.tradexserver.openApi.webSocket;
 
 import hello.tradexserver.domain.ExchangeApiKey;
+import hello.tradexserver.openApi.rest.BinanceRestClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestTemplate;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -16,7 +16,7 @@ public class ExchangeWebSocketManager {
 
     private final Map<String, ExchangeWebSocketClient> activeConnections = new ConcurrentHashMap<>();
 
-    private final RestTemplate restTemplate;
+    private final BinanceRestClient binanceRestClient;
     private final PositionListener positionListener;
     private final OrderListener orderListener;
 
@@ -77,9 +77,7 @@ public class ExchangeWebSocketManager {
         }
 
         if ("BINANCE".equalsIgnoreCase(exchange)) {
-            return new BinanceWebSocketClient(
-                    userId, apiKey.getApiKey(), apiKey.getApiSecret(), restTemplate
-            );
+            return new BinanceWebSocketClient(userId, apiKey, binanceRestClient);
         }
 
         if ("BITGET".equalsIgnoreCase(exchange)) {

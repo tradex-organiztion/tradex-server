@@ -301,6 +301,7 @@ public class BybitWebSocketClient implements ExchangeWebSocketClient {
         }
 
         private Position convertToPosition(BybitPositionData data) {
+            LocalDateTime updateTime = parseTimestamp(data.getUpdatedTime());
             return Position.builder()
                     .exchangeApiKey(exchangeApiKey)
                     .symbol(data.getSymbol())
@@ -311,8 +312,9 @@ public class BybitWebSocketClient implements ExchangeWebSocketClient {
                     .targetPrice(parseBigDecimal(data.getTakeProfit()))
                     .stopLossPrice(parseBigDecimal(data.getStopLoss()))
                     .realizedPnl(parseBigDecimal(data.getCurRealisedPnl()))
+                    .entryTime(updateTime)
                     .status(convertStatus(data.getSize()))
-                    .exchangeUpdateTime(parseTimestamp(data.getUpdatedTime()))
+                    .exchangeUpdateTime(updateTime)
                     .build();
         }
 
