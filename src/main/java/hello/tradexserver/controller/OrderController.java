@@ -48,6 +48,19 @@ public class OrderController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
+    @PatchMapping("/api/orders/{orderId}/move")
+    @Operation(summary = "오더 이동", description = "오더를 다른 포지션으로 이동합니다. 양쪽 포지션이 청산 상태면 자동 재계산됩니다.")
+    public ResponseEntity<ApiResponse<OrderResponse>> moveToPosition(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable Long orderId,
+            @RequestParam Long targetPositionId
+    ) {
+        log.info("[OrderController] 오더 이동 요청 - userId: {}, orderId: {}, targetPositionId: {}",
+                userDetails.getUserId(), orderId, targetPositionId);
+        OrderResponse response = orderService.moveToPosition(userDetails.getUserId(), orderId, targetPositionId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
     @DeleteMapping("/api/orders/{orderId}")
     @Operation(summary = "오더 삭제", description = "오더를 삭제합니다. 청산 포지션이면 자동 재계산됩니다.")
     public ResponseEntity<ApiResponse<Void>> delete(

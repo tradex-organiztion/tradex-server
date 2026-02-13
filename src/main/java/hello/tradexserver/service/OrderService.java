@@ -91,6 +91,35 @@ public class OrderService {
     }
 
     /**
+     * 오더를 다른 포지션으로 이동 → 양쪽 포지션 재계산
+     */
+    public OrderResponse moveToPosition(Long userId, Long orderId, Long targetPositionId) {
+        Order order = orderRepository.findByIdAndUserId(orderId, userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_NOT_FOUND));
+
+        Position targetPosition = positionRepository.findByIdAndUserId(targetPositionId, userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.POSITION_NOT_FOUND));
+
+        Long oldPositionId = order.getPosition() != null ? order.getPosition().getId() : null;
+        boolean oldWasClosed = order.getPosition() != null && order.getPosition().isClosed();
+
+        order.assignToPosition(targetPosition);
+        orderRepository.save(order);
+
+        log.info("[OrderService] 오더 이동 - userId: {}, orderId: {}, {} → {}",
+                userId, orderId, oldPositionId, targetPositionId);
+
+        if (oldWasClosed && oldPositionId != null) {
+            orderMappingService.recalculatePosition(oldPositionId);
+        }
+        if (targetPosition.isClosed()) {
+            orderMappingService.recalculatePosition(targetPositionId);
+        }
+
+        return OrderResponse.from(order);
+    }
+
+    /**
      * 오더 삭제 → closed 포지션이면 재계산
      */
     public void delete(Long userId, Long orderId) {
