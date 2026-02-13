@@ -86,7 +86,7 @@ public class BinanceRestClient implements ExchangeRestClient {
 
             HttpEntity<String> entity = new HttpEntity<>(createApiKeyHeader(apiKey));
             ResponseEntity<String> response = restTemplate.exchange(
-                    BASE_URL + "/fapi/v3/positionRisk?" + queryString,
+                    BASE_URL + "/fapi/v2/positionRisk?" + queryString,
                     HttpMethod.GET, entity, String.class);
 
             String body = response.getBody();

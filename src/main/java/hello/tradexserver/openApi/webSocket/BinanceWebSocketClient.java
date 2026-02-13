@@ -286,7 +286,7 @@ public class BinanceWebSocketClient implements ExchangeWebSocketClient {
                     return Integer.parseInt(risks.get(0).getLeverage());
                 }
             } catch (Exception e) {
-                log.warn("[Binance] leverage 조회 실패 - symbol: {}, user: {}", symbol, userId);
+                log.warn("[Binance] leverage 조회 실패 - symbol: {}, user: {}", symbol, userId, e);
             }
             return null;
         }
