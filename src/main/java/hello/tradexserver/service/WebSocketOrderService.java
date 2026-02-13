@@ -73,9 +73,9 @@ public class WebSocketOrderService implements OrderListener {
 
         LocalDateTime now = LocalDateTime.now();
 
-        // Binance는 symbol 필수 → DB OPEN 포지션 symbol 기준으로 조회
+        // Binance/Bitget은 symbol 필수 → DB OPEN 포지션 symbol 기준으로 조회
         List<Order> fetched;
-        if (apiKey.getExchangeName() == ExchangeName.BINANCE) {
+        if (apiKey.getExchangeName() == ExchangeName.BINANCE || apiKey.getExchangeName() == ExchangeName.BITGET) {
             fetched = fetchOrdersByOpenPositionSymbols(orderService, apiKey, gapStartTime, now);
         } else {
             fetched = orderService.fetchAndConvertOrders(apiKey, null, gapStartTime, now);

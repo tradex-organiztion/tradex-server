@@ -81,9 +81,7 @@ public class ExchangeWebSocketManager {
         }
 
         if ("BITGET".equalsIgnoreCase(exchange)) {
-            return new BitgetWebSocketClient(
-                    userId, apiKey.getApiKey(), apiKey.getApiSecret(), apiKey.getPassphrase()
-            );
+            return new BitgetWebSocketClient(userId, apiKey);
         }
 
         throw new IllegalArgumentException("Unsupported exchange: " + exchange);

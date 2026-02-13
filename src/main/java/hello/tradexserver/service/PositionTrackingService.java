@@ -9,8 +9,10 @@ import hello.tradexserver.domain.enums.PositionSide;
 import hello.tradexserver.domain.enums.PositionStatus;
 import hello.tradexserver.event.PositionCloseEvent;
 import hello.tradexserver.openApi.rest.dto.BinancePositionRisk;
+import hello.tradexserver.openApi.rest.dto.BitgetPositionItem;
 import hello.tradexserver.openApi.rest.dto.BybitPositionRestItem;
 import hello.tradexserver.openApi.rest.position.BinancePositionRestService;
+import hello.tradexserver.openApi.rest.position.BitgetPositionRestService;
 import hello.tradexserver.openApi.rest.position.BybitPositionRestService;
 import hello.tradexserver.openApi.webSocket.PositionListener;
 import hello.tradexserver.repository.ExchangeApiKeyRepository;
@@ -43,6 +45,7 @@ public class PositionTrackingService implements PositionListener {
     private final ApplicationEventPublisher eventPublisher;
     private final BybitPositionRestService bybitPositionRestService;
     private final BinancePositionRestService binancePositionRestService;
+    private final BitgetPositionRestService bitgetPositionRestService;
 
     @Override
     @Transactional
@@ -190,7 +193,7 @@ public class PositionTrackingService implements PositionListener {
         switch (exchange) {
             case BYBIT -> reconnectBybit(freshApiKey);
             case BINANCE -> reconnectBinance(freshApiKey);
-            default -> log.info("[PositionTracking] onReconnected 미구현 거래소: {}", exchange);
+            case BITGET -> reconnectBitget(freshApiKey);
         }
     }
 
@@ -281,6 +284,58 @@ public class PositionTrackingService implements PositionListener {
 
         log.info("[PositionTracking] Binance 재연결 Gap 보완 완료 - apiKeyId: {}, 처리 {}건",
                 freshApiKey.getId(), dbOpenPositions.size());
+    }
+
+    private void reconnectBitget(ExchangeApiKey freshApiKey) {
+        log.info("[PositionTracking] Bitget 재연결 Gap 보완 시작 - apiKeyId: {}", freshApiKey.getId());
+
+        List<Position> dbOpenPositions = positionRepository.findAllOpenByApiKeyId(freshApiKey.getId());
+        if (dbOpenPositions.isEmpty()) {
+            log.info("[PositionTracking] 보완할 OPEN 포지션 없음 - apiKeyId: {}", freshApiKey.getId());
+            return;
+        }
+
+        List<BitgetPositionItem> restPositions = bitgetPositionRestService.getOpenPositions(freshApiKey);
+        Map<String, BitgetPositionItem> restMap = restPositions.stream()
+                .collect(Collectors.toMap(
+                        p -> p.getInstId() + "_" + convertBitgetSide(p.getHoldSide(), p.getTotal()),
+                        p -> p,
+                        (a, b) -> a
+                ));
+
+        for (Position dbPos : dbOpenPositions) {
+            String key = dbPos.getSymbol() + "_" + dbPos.getSide().name();
+            BitgetPositionItem restPos = restMap.get(key);
+
+            if (restPos == null) {
+                log.info("[PositionTracking] Gap 종료 감지 - positionId: {}, symbol: {}", dbPos.getId(), dbPos.getSymbol());
+                dbPos.closingPosition(LocalDateTime.now(), PositionStatus.CLOSING);
+                positionRepository.save(dbPos);
+                eventPublisher.publishEvent(PositionCloseEvent.builder()
+                        .positionId(dbPos.getId())
+                        .build());
+            } else {
+                dbPos.updateFromWebSocket(
+                        parseBigDecimal(restPos.getOpenPriceAvg()),
+                        parseBigDecimal(restPos.getTotal()).abs(),
+                        parseInteger(restPos.getLeverage()),
+                        parseBigDecimal(restPos.getAchievedProfits())
+                );
+                positionRepository.save(dbPos);
+                log.debug("[PositionTracking] Gap 업데이트 - positionId: {}, symbol: {}", dbPos.getId(), dbPos.getSymbol());
+            }
+        }
+
+        log.info("[PositionTracking] Bitget 재연결 Gap 보완 완료 - apiKeyId: {}, 처리 {}건",
+                freshApiKey.getId(), dbOpenPositions.size());
+    }
+
+    private String convertBitgetSide(String holdSide, String total) {
+        if ("long".equalsIgnoreCase(holdSide)) return PositionSide.LONG.name();
+        if ("short".equalsIgnoreCase(holdSide)) return PositionSide.SHORT.name();
+        // "net": amount 부호로 방향 결정
+        BigDecimal amt = parseBigDecimal(total);
+        return amt.compareTo(BigDecimal.ZERO) >= 0 ? PositionSide.LONG.name() : PositionSide.SHORT.name();
     }
 
     private String convertBybitSide(String bybitSide) {

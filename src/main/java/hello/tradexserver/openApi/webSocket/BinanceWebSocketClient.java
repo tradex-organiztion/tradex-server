@@ -197,6 +197,7 @@ public class BinanceWebSocketClient implements ExchangeWebSocketClient {
 
                     switch (eventType) {
                         case "ACCOUNT_UPDATE":
+                            System.out.println(jsonNode);
                             handleAccountUpdate(jsonNode);
                             break;
                         case "ORDER_TRADE_UPDATE":
@@ -248,12 +249,18 @@ public class BinanceWebSocketClient implements ExchangeWebSocketClient {
             String symbol = posNode.path("s").asText();
 
             PositionSide side;
-            if ("BOTH".equals(positionSideStr)) {
-                // one-way 모드: amount 부호로 방향 결정
-                side = positionAmt.compareTo(BigDecimal.ZERO) >= 0
-                        ? PositionSide.LONG : PositionSide.SHORT;
+            if ("LONG".equals(positionSideStr)) {
+                side = PositionSide.LONG;
+            } else if ("SHORT".equals(positionSideStr)) {
+                side = PositionSide.SHORT;
             } else {
-                side = "LONG".equals(positionSideStr) ? PositionSide.LONG : PositionSide.SHORT;
+                // BOTH (원웨이 모드): 포지션 닫힘(pa=0)이면 side 불명 → null
+                if (positionAmt.compareTo(BigDecimal.ZERO) == 0) {
+                    side = null;
+                } else {
+                    side = positionAmt.compareTo(BigDecimal.ZERO) > 0
+                            ? PositionSide.LONG : PositionSide.SHORT;
+                }
             }
 
             // leverage는 ACCOUNT_UPDATE에 없음 → REST 보완
