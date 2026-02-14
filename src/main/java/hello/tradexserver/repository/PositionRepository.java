@@ -3,6 +3,9 @@ package hello.tradexserver.repository;
 import hello.tradexserver.domain.Position;
 import hello.tradexserver.domain.enums.PositionSide;
 import hello.tradexserver.domain.enums.PositionStatus;
+import hello.tradexserver.domain.enums.ExchangeName;
+import hello.tradexserver.domain.enums.PositionSide;
+import hello.tradexserver.domain.enums.PositionStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -11,6 +14,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.List;
 
 public interface PositionRepository extends JpaRepository<Position, Long> {
@@ -95,4 +99,60 @@ public interface PositionRepository extends JpaRepository<Position, Long> {
             @Param("userId") Long userId,
             @Param("status") String status,
             @Param("startDate") LocalDateTime startDate);
+
+    @Query("SELECT p FROM Position p WHERE p.user.id = :userId " +
+            "AND p.exchangeName = :exchangeName AND p.symbol = :symbol " +
+            "AND p.side = :side AND p.status = 'OPEN'")
+    Optional<Position> findOpenPosition(Long userId, ExchangeName exchangeName,
+                                        String symbol, PositionSide side);
+
+    List<Position> findByUserIdAndStatus(Long userId, PositionStatus status);
+
+
+    /**
+     * exchangeApiKeyId + symbol + side + OPEN 상태로 조회 (WebSocket 업데이트용)
+     * 중복 저장 방지를 위해 entryTime 최신순 1건만 반환
+     */
+    @Query("""
+        SELECT p FROM Position p
+        WHERE p.exchangeApiKey.id = :apiKeyId
+          AND p.symbol = :symbol
+          AND p.side = :side
+          AND p.status = 'OPEN'
+        ORDER BY p.entryTime DESC
+        LIMIT 1
+        """)
+    Optional<Position> findOpenPositionByApiKey(
+            @Param("apiKeyId") Long apiKeyId,
+            @Param("symbol") String symbol,
+            @Param("side") PositionSide side
+    );
+
+    /**
+     * 단방향 모드에서 side 없이 symbol만으로 OPEN 포지션 조회 (entryTime 최신순)
+     * 중복이 있을 수 있으므로 List로 반환 → 서비스에서 최신 1건 사용, 나머지 종료 처리
+     */
+    @Query("""
+        SELECT p FROM Position p
+        WHERE p.exchangeApiKey.id = :apiKeyId
+          AND p.symbol = :symbol
+          AND p.status = 'OPEN'
+        ORDER BY p.entryTime DESC
+        """)
+    List<Position> findOpenPositionsByApiKeyAndSymbol(
+            @Param("apiKeyId") Long apiKeyId,
+            @Param("symbol") String symbol
+    );
+
+    /**
+     * 특정 apiKey의 모든 OPEN 포지션 조회 (재연결 시 Gap 보완용)
+     */
+    @Query("""
+        SELECT p FROM Position p
+        WHERE p.exchangeApiKey.id = :apiKeyId
+          AND p.status = 'OPEN'
+        """)
+    List<Position> findAllOpenByApiKeyId(@Param("apiKeyId") Long apiKeyId);
+
+    Optional<Position> findByIdAndUserId(Long id, Long userId);
 }

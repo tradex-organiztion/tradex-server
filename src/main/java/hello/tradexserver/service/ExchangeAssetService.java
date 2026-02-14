@@ -32,10 +32,8 @@ public class ExchangeAssetService {
         return apiKeys.stream()
                 .map(key -> {
                     try {
-                        ExchangeRestClient client = exchangeFactory.getExchangeService(
-                                key.getExchangeName(), key.getApiKey(), key.getApiSecret()
-                        );
-                        BigDecimal asset = client.getAsset();
+                        ExchangeRestClient client = exchangeFactory.getExchangeService(key.getExchangeName());
+                        BigDecimal asset = client.getAsset(key);
                         return asset != null ? asset : BigDecimal.ZERO;
                     } catch (Exception e) {
                         log.warn("Failed to get asset from {}: {}", key.getExchangeName(), e.getMessage());
@@ -57,10 +55,8 @@ public class ExchangeAssetService {
 
         for (ExchangeApiKey key : apiKeys) {
             try {
-                ExchangeRestClient client = exchangeFactory.getExchangeService(
-                        key.getExchangeName(), key.getApiKey(), key.getApiSecret()
-                );
-                WalletBalanceResponse walletBalance = client.getWalletBalance();
+                ExchangeRestClient client = exchangeFactory.getExchangeService(key.getExchangeName());
+                WalletBalanceResponse walletBalance = client.getWalletBalance(key);
 
                 if (walletBalance != null) {
                     if (walletBalance.getTotalEquity() != null) {

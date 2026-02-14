@@ -22,7 +22,6 @@ public class PositionResponse {
     private PositionSide side;
     private LocalDateTime entryTime;
     private BigDecimal avgEntryPrice;
-    private BigDecimal closedSize;
     private Integer leverage;
     private LocalDateTime exitTime;
     private BigDecimal avgExitPrice;
@@ -44,7 +43,6 @@ public class PositionResponse {
                 .side(position.getSide())
                 .entryTime(position.getEntryTime())
                 .avgEntryPrice(position.getAvgEntryPrice())
-                .closedSize(position.getClosedSize())
                 .leverage(position.getLeverage())
                 .exitTime(position.getExitTime())
                 .avgExitPrice(position.getAvgExitPrice())
