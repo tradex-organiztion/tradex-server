@@ -1,7 +1,8 @@
 package hello.tradexserver.service;
 
-import hello.tradexserver.domain.Order;
 import hello.tradexserver.domain.TradingJournal;
+import hello.tradexserver.domain.enums.PositionSide;
+import hello.tradexserver.domain.enums.PositionStatus;
 import hello.tradexserver.dto.request.JournalRequest;
 import hello.tradexserver.dto.response.JournalDetailResponse;
 import hello.tradexserver.dto.response.JournalSummaryResponse;
@@ -32,13 +33,19 @@ public class TradingJournalService {
     private final OrderRepository orderRepository;
 
     /**
-     * 매매일지 목록 조회 (포지션 요약 포함, 페이지네이션)
+     * 매매일지 목록 조회 (포지션 요약 포함, 필터링 + 페이지네이션)
      */
     @Transactional(readOnly = true)
-    public Page<JournalSummaryResponse> getList(Long userId, int page, int size) {
+    public Page<JournalSummaryResponse> getList(Long userId, String symbol, PositionSide side,
+                                                 PositionStatus positionStatus, int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
-        return tradingJournalRepository.findByUserId(userId, pageable)
-                .map(JournalSummaryResponse::from);
+
+        boolean hasFilter = symbol != null || side != null || positionStatus != null;
+        Page<TradingJournal> journals = hasFilter
+                ? tradingJournalRepository.findByUserIdWithFilters(userId, symbol, side, positionStatus, pageable)
+                : tradingJournalRepository.findByUserId(userId, pageable);
+
+        return journals.map(JournalSummaryResponse::from);
     }
 
     /**

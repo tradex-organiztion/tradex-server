@@ -1,5 +1,7 @@
 package hello.tradexserver.controller;
 
+import hello.tradexserver.domain.enums.PositionSide;
+import hello.tradexserver.domain.enums.PositionStatus;
 import hello.tradexserver.dto.request.JournalRequest;
 import hello.tradexserver.dto.response.ApiResponse;
 import hello.tradexserver.dto.response.JournalDetailResponse;
@@ -7,6 +9,7 @@ import hello.tradexserver.dto.response.JournalSummaryResponse;
 import hello.tradexserver.security.CustomUserDetails;
 import hello.tradexserver.service.TradingJournalService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,14 +28,24 @@ public class TradingJournalController {
     private final TradingJournalService tradingJournalService;
 
     @GetMapping
-    @Operation(summary = "매매일지 목록 조회", description = "포지션 요약 정보를 포함한 매매일지 목록을 페이지네이션으로 조회합니다.")
+    @Operation(summary = "매매일지 목록 조회", description = """
+            포지션 요약 정보를 포함한 매매일지 목록을 페이지네이션으로 조회합니다.
+
+            **필터링 옵션:** symbol, side (LONG/SHORT), positionStatus (OPEN/CLOSED)
+            """)
     public ResponseEntity<ApiResponse<Page<JournalSummaryResponse>>> getList(
             @AuthenticationPrincipal CustomUserDetails userDetails,
+            @Parameter(description = "거래 페어 필터", example = "BTCUSDT")
+            @RequestParam(required = false) String symbol,
+            @Parameter(description = "포지션 방향 (LONG/SHORT)")
+            @RequestParam(required = false) PositionSide side,
+            @Parameter(description = "포지션 상태 (OPEN/CLOSED)")
+            @RequestParam(required = false) PositionStatus positionStatus,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
     ) {
         Page<JournalSummaryResponse> response = tradingJournalService.getList(
-                userDetails.getUserId(), page, size);
+                userDetails.getUserId(), symbol, side, positionStatus, page, size);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
