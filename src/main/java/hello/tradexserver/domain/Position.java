@@ -1,6 +1,7 @@
 package hello.tradexserver.domain;
 
 import hello.tradexserver.domain.enums.ExchangeName;
+import hello.tradexserver.domain.enums.MappingStatus;
 import hello.tradexserver.domain.enums.MarketCondition;
 import hello.tradexserver.domain.enums.PositionSide;
 import hello.tradexserver.domain.enums.PositionStatus;
@@ -9,7 +10,6 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.math.BigDecimal;
@@ -24,7 +24,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Position extends BaseTimeEntity{
+public class Position extends BaseTimeEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -42,16 +42,16 @@ public class Position extends BaseTimeEntity{
     private ExchangeName exchangeName;
 
     @Column(nullable = false, length = 50)
-    private String symbol; // 자산 종목 ex) BTCUSDT, ETHUSDT
+    private String symbol;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 10)
-    private PositionSide side; // 포지션 방향 Buy(Long), Sell(Short)
+    private PositionSide side;
 
     @Column(nullable = false, precision = 20, scale = 8)
-    private BigDecimal avgEntryPrice; // 평균 진입 가격
+    private BigDecimal avgEntryPrice; // 평균 진입가
 
-    @Column(nullable = false, precision = 20, scale = 8)
+    @Column(precision = 20, scale = 8)
     private BigDecimal currentSize;
 
     @Column(precision = 20, scale = 8)
@@ -66,31 +66,36 @@ public class Position extends BaseTimeEntity{
     private Integer leverage;
 
     @Column(nullable = false)
-    private LocalDateTime entryTime; // 포지션이 처음 생성된 타임스탬프
+    private LocalDateTime entryTime;
 
-    private LocalDateTime exitTime; // 청산 날짜 및 시간
+    private LocalDateTime exitTime;
 
     private LocalDateTime exchangeUpdateTime;
 
     @Column(precision = 20, scale = 8)
-    private BigDecimal avgExitPrice; // 청산 가격
+    private BigDecimal avgExitPrice;
 
     @Column(precision = 20, scale = 8)
-    private BigDecimal realizedPnl; // 거래 손익
+    private BigDecimal realizedPnl;
 
     @Column(precision = 20, scale = 8)
-    private BigDecimal targetPrice; // 익절가
+    private BigDecimal targetPrice;
 
     @Column(precision = 20, scale = 8)
-    private BigDecimal stopLossPrice; // 손절가
+    private BigDecimal stopLossPrice;
 
     @Enumerated(EnumType.STRING)
     @Column(length = 20)
     private MarketCondition marketCondition;
 
     @Enumerated(EnumType.STRING)
-    @Column(length = 20)
+    @Column(nullable = false, length = 10)
     private PositionStatus status;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 15)
+    @Builder.Default
+    private MappingStatus mappingStatus = MappingStatus.NONE;
 
     @Column(columnDefinition = "TEXT")
     private String nextPageCursor;
@@ -102,8 +107,8 @@ public class Position extends BaseTimeEntity{
     @OneToOne(mappedBy = "position", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     private TradingJournal tradingJournal;
 
-    public void updateStatus(PositionStatus newStatus) {
-        this.status = newStatus;
+    public boolean isClosed() {
+        return this.status == PositionStatus.CLOSED;
     }
 
     public void updateFromWebSocket(BigDecimal avgEntryPrice, BigDecimal currentSize,
@@ -114,9 +119,13 @@ public class Position extends BaseTimeEntity{
         this.realizedPnl = realizedPnl;
     }
 
-    public void closingPosition(LocalDateTime exitTime, PositionStatus status) {
+    /**
+     * 포지션 종료 감지 → CLOSED + 매핑 시작
+     */
+    public void closingPosition(LocalDateTime exitTime) {
         this.exitTime = exitTime;
-        this.status = status;
+        this.status = PositionStatus.CLOSED;
+        this.mappingStatus = MappingStatus.IN_PROGRESS;
     }
 
     public void update(BigDecimal avgEntryPrice, BigDecimal avgExitPrice,
@@ -132,10 +141,9 @@ public class Position extends BaseTimeEntity{
         if (exitTime != null) this.exitTime = exitTime;
     }
 
-    public boolean isClosed() {
-        return this.status == PositionStatus.CLOSED_MAPPED || this.status == PositionStatus.CLOSED;
-    }
-
+    /**
+     * 오더 매핑 완료 → 포지션 계산 결과 반영
+     */
     public void applyMappingResult(BigDecimal avgExitPrice, BigDecimal realizedPnl,
                                     BigDecimal closedFee, BigDecimal openFee,
                                     BigDecimal closedSize) {
@@ -145,6 +153,13 @@ public class Position extends BaseTimeEntity{
         this.openFee = openFee;
         this.closedSize = closedSize;
         this.currentSize = BigDecimal.ZERO;
-        this.status = PositionStatus.CLOSED_MAPPED;
+        this.mappingStatus = MappingStatus.MAPPED;
+    }
+
+    /**
+     * 오더 매핑 실패
+     */
+    public void failMapping() {
+        this.mappingStatus = MappingStatus.FAILED;
     }
 }

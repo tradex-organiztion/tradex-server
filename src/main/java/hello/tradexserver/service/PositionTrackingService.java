@@ -162,7 +162,7 @@ public class PositionTrackingService implements PositionListener {
             Position existing = existingOpt.get();
             log.info("[PositionTracking] exchangeUpdateTime 값: {}", wsPosition.getExchangeUpdateTime());
 
-            existing.closingPosition(wsPosition.getExchangeUpdateTime(), PositionStatus.CLOSING);
+            existing.closingPosition(wsPosition.getExchangeUpdateTime());
             positionRepository.save(existing);
             log.info("[PositionTracking] Position CLOSING - id: {}, symbol: {}", existing.getId(), existing.getSymbol());
             log.info("[PositionTracking] Position CLOSING - exitTime: {}", existing.getExitTime());
@@ -220,7 +220,7 @@ public class PositionTrackingService implements PositionListener {
 
             if (restPos == null) {
                 log.info("[PositionTracking] Gap 종료 감지 - positionId: {}, symbol: {}", dbPos.getId(), dbPos.getSymbol());
-                dbPos.closingPosition(LocalDateTime.now(), PositionStatus.CLOSING);
+                dbPos.closingPosition(LocalDateTime.now());
                 positionRepository.save(dbPos);
                 eventPublisher.publishEvent(PositionCloseEvent.builder()
                         .positionId(dbPos.getId())
@@ -264,7 +264,7 @@ public class PositionTrackingService implements PositionListener {
 
             if (restPos == null) {
                 log.info("[PositionTracking] Gap 종료 감지 - positionId: {}, symbol: {}", dbPos.getId(), dbPos.getSymbol());
-                dbPos.closingPosition(LocalDateTime.now(), PositionStatus.CLOSING);
+                dbPos.closingPosition(LocalDateTime.now());
                 positionRepository.save(dbPos);
                 eventPublisher.publishEvent(PositionCloseEvent.builder()
                         .positionId(dbPos.getId())
@@ -309,7 +309,7 @@ public class PositionTrackingService implements PositionListener {
 
             if (restPos == null) {
                 log.info("[PositionTracking] Gap 종료 감지 - positionId: {}, symbol: {}", dbPos.getId(), dbPos.getSymbol());
-                dbPos.closingPosition(LocalDateTime.now(), PositionStatus.CLOSING);
+                dbPos.closingPosition(LocalDateTime.now());
                 positionRepository.save(dbPos);
                 eventPublisher.publishEvent(PositionCloseEvent.builder()
                         .positionId(dbPos.getId())

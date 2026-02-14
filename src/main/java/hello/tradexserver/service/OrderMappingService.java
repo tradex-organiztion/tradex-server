@@ -4,7 +4,6 @@ import hello.tradexserver.domain.Order;
 import hello.tradexserver.domain.Position;
 import hello.tradexserver.domain.enums.PositionEffect;
 import hello.tradexserver.domain.enums.PositionSide;
-import hello.tradexserver.domain.enums.PositionStatus;
 import hello.tradexserver.repository.OrderRepository;
 import hello.tradexserver.repository.PositionRepository;
 import lombok.RequiredArgsConstructor;
@@ -49,7 +48,7 @@ public class OrderMappingService {
 
             if (candidates.isEmpty()) {
                 log.warn("[OrderMapping] 후보 Order 없음 - positionId: {}", position.getId());
-                position.updateStatus(PositionStatus.CLOSED_UNMAPPED);
+                position.failMapping();
                 positionRepository.save(position);
                 return;
             }
@@ -94,7 +93,7 @@ public class OrderMappingService {
 
         } catch (Exception e) {
             log.error("[OrderMapping] 매핑 실패 - positionId: {}", position.getId(), e);
-            position.updateStatus(PositionStatus.CLOSED_UNMAPPED);
+            position.failMapping();
             positionRepository.save(position);
         }
     }

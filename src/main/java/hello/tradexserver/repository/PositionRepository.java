@@ -108,7 +108,6 @@ public interface PositionRepository extends JpaRepository<Position, Long> {
 
     List<Position> findByUserIdAndStatus(Long userId, PositionStatus status);
 
-    List<Position> findByStatus(PositionStatus status);
 
     /**
      * exchangeApiKeyId + symbol + side + OPEN 상태로 조회 (WebSocket 업데이트용)
