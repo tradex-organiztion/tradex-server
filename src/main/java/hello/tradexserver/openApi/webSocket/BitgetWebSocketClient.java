@@ -229,16 +229,18 @@ public class BitgetWebSocketClient implements ExchangeWebSocketClient {
                 log.info("[Bitget] Login successful - user: {}", userId);
                 subscribePosition();
 
-                // 재연결 시 Gap 보완
+                // 연결/재연결 시 Gap 보완 (첫 연결 시 gapStart=null)
                 LocalDateTime gapStart = disconnectTime.getAndSet(null);
                 if (gapStart != null) {
                     log.info("[Bitget] 재연결 감지 - Gap 보완 시작 (gapStart: {}) - user: {}", gapStart, userId);
-                    if (orderListener != null) {
-                        orderListener.onReconnected(exchangeApiKey, gapStart);
-                    }
-                    if (positionListener != null) {
-                        positionListener.onReconnected(exchangeApiKey);
-                    }
+                } else {
+                    log.info("[Bitget] 첫 연결 - 초기 보완 시작 - user: {}", userId);
+                }
+                if (orderListener != null) {
+                    orderListener.onReconnected(exchangeApiKey, gapStart);
+                }
+                if (positionListener != null) {
+                    positionListener.onReconnected(exchangeApiKey);
                 }
             } else {
                 log.error("[Bitget] Login failed - user: {}, code: {}, msg: {}",
@@ -331,8 +333,41 @@ public class BitgetWebSocketClient implements ExchangeWebSocketClient {
                     trackedPositions.remove(key);
                     positionListener.onPositionClosed(position);
                 } else {
+                    // 플립 감지: 같은 instId에 다른 holdSide의 tracked 포지션이 있으면 종료 처리
+                    detectAndCloseFlippedPosition(data.getInstId(), key, position.getSide());
+
                     trackedPositions.put(key, position.getSide());
                     positionListener.onPositionUpdate(position);
+                }
+            }
+        }
+
+        /**
+         * holdSide가 반전된 경우 (예: long→short) 기존 tracked 포지션을 종료 처리하고 제거한다.
+         */
+        private void detectAndCloseFlippedPosition(String instId, String newKey, PositionSide newSide) {
+            Iterator<Map.Entry<String, PositionSide>> it = trackedPositions.entrySet().iterator();
+            while (it.hasNext()) {
+                Map.Entry<String, PositionSide> entry = it.next();
+                // 같은 instId이고, 다른 key(다른 holdSide)이며, 다른 side인 경우
+                if (entry.getKey().startsWith(instId + "_") && !entry.getKey().equals(newKey)
+                        && entry.getValue() != newSide) {
+                    log.info("[Bitget] 포지션 플립 감지 - symbol: {}, {} → {}, user: {}",
+                            instId, entry.getValue(), newSide, userId);
+
+                    if (positionListener != null) {
+                        Position closedPosition = Position.builder()
+                                .exchangeApiKey(exchangeApiKey)
+                                .symbol(instId)
+                                .side(entry.getValue())
+                                .currentSize(BigDecimal.ZERO)
+                                .avgEntryPrice(BigDecimal.ZERO)
+                                .status(PositionStatus.CLOSED)
+                                .exchangeUpdateTime(LocalDateTime.now())
+                                .build();
+                        positionListener.onPositionClosed(closedPosition);
+                    }
+                    it.remove();
                 }
             }
         }
@@ -413,14 +448,13 @@ public class BitgetWebSocketClient implements ExchangeWebSocketClient {
             OrderSide side = "buy".equalsIgnoreCase(data.getSide()) ? OrderSide.BUY : OrderSide.SELL;
             OrderType orderType = "market".equalsIgnoreCase(data.getOrderType()) ? OrderType.MARKET : OrderType.LIMIT;
             OrderStatus status = "filled".equals(data.getStatus()) ? OrderStatus.FILLED : OrderStatus.CANCELED;
-            PositionEffect positionEffect = convertTradeSideToPositionEffect(data.getTradeSide());
+            PositionEffect positionEffect = convertReduceOnlyToPositionEffect(data.getReduceOnly());
             Integer positionIdx = convertPosSideToIdx(data.getPosSide());
 
             BigDecimal cumFee = calculateTotalFee(data);
 
             LocalDateTime orderTime = parseTimestamp(data.getCTime());
-            LocalDateTime fillTime = "filled".equals(data.getStatus())
-                    ? parseTimestamp(data.getUTime()) : null;
+            LocalDateTime fillTime = parseTimestamp(data.getUTime());
 
             return Order.builder()
                     .user(exchangeApiKey.getUser())
@@ -442,12 +476,8 @@ public class BitgetWebSocketClient implements ExchangeWebSocketClient {
                     .build();
         }
 
-        private PositionEffect convertTradeSideToPositionEffect(String tradeSide) {
-            if (tradeSide == null) return PositionEffect.OPEN;
-            if ("open".equals(tradeSide) || "buy_single".equals(tradeSide) || "sell_single".equals(tradeSide)) {
-                return PositionEffect.OPEN;
-            }
-            return PositionEffect.CLOSE;
+        private PositionEffect convertReduceOnlyToPositionEffect(String reduceOnly) {
+            return "yes".equalsIgnoreCase(reduceOnly) ? PositionEffect.CLOSE : PositionEffect.OPEN;
         }
 
         private Integer convertPosSideToIdx(String posSide) {

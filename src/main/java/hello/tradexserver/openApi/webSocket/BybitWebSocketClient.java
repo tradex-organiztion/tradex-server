@@ -205,16 +205,18 @@ public class BybitWebSocketClient implements ExchangeWebSocketClient {
                 subscribePosition();
                 subscribeOrders();
 
-                // 재연결 시 끊겼던 구간의 Order Gap 보완
+                // 연결/재연결 시 Gap 보완 (첫 연결 시 gapStart=null)
                 LocalDateTime gapStart = disconnectTime.getAndSet(null);
                 if (gapStart != null) {
                     log.info("[Bybit] 재연결 감지 - Gap 보완 시작 (gapStart: {}) - user: {}", gapStart, userId);
-                    if (orderListener != null) {
-                        orderListener.onReconnected(exchangeApiKey, gapStart);
-                    }
-                    if (positionListener != null) {
-                        positionListener.onReconnected(exchangeApiKey);
-                    }
+                } else {
+                    log.info("[Bybit] 첫 연결 - 초기 보완 시작 - user: {}", userId);
+                }
+                if (orderListener != null) {
+                    orderListener.onReconnected(exchangeApiKey, gapStart);
+                }
+                if (positionListener != null) {
+                    positionListener.onReconnected(exchangeApiKey);
                 }
             } else {
                 String retMsg = jsonNode.has("ret_msg") ? jsonNode.get("ret_msg").asText() : "Unknown error";
@@ -294,7 +296,7 @@ public class BybitWebSocketClient implements ExchangeWebSocketClient {
                     .realizedPnl(parseBigDecimal(data.getClosedPnl()))
                     .status(status)
                     .orderTime(parseTimestamp(data.getCreatedTime()))
-                    .fillTime("Filled".equals(data.getOrderStatus()) ? parseTimestamp(data.getUpdatedTime()) : null)
+                    .fillTime(parseTimestamp(data.getUpdatedTime()))
                     .positionIdx(data.getPositionIdx())
                     .orderLinkId(data.getOrderLinkId())
                     .build();

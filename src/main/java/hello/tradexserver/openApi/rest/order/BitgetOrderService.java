@@ -62,8 +62,7 @@ public class BitgetOrderService implements ExchangeOrderService {
         BigDecimal cumFee = calculateTotalFee(item.getFeeDetail());
 
         LocalDateTime orderTime = parseMillisToLocalDateTime(item.getCTime());
-        LocalDateTime fillTime = "filled".equals(item.getStatus())
-                ? parseMillisToLocalDateTime(item.getUTime()) : null;
+        LocalDateTime fillTime = parseMillisToLocalDateTime(item.getUTime());
 
         return Order.builder()
                 .user(apiKey.getUser())

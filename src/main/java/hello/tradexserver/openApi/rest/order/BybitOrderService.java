@@ -58,9 +58,7 @@ public class BybitOrderService implements ExchangeOrderService {
                 : PositionEffect.OPEN;
 
         LocalDateTime orderTime = parseTimestamp(item.getCreatedTime());
-        LocalDateTime fillTime = "Filled".equals(item.getOrderStatus())
-                ? parseTimestamp(item.getUpdatedTime())
-                : null;
+        LocalDateTime fillTime = parseTimestamp(item.getUpdatedTime());
 
         return Order.builder()
                 .user(apiKey.getUser())

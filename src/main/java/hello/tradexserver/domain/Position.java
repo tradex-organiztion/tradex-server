@@ -13,6 +13,7 @@ import lombok.NoArgsConstructor;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -111,23 +112,6 @@ public class Position extends BaseTimeEntity {
         return this.status == PositionStatus.CLOSED;
     }
 
-    public void updateFromWebSocket(BigDecimal avgEntryPrice, BigDecimal currentSize,
-                                     Integer leverage, BigDecimal realizedPnl) {
-        this.avgEntryPrice = avgEntryPrice;
-        this.currentSize = currentSize;
-        if (leverage != null) this.leverage = leverage;
-        this.realizedPnl = realizedPnl;
-    }
-
-    /**
-     * 포지션 종료 감지 → CLOSED + 매핑 시작
-     */
-    public void closingPosition(LocalDateTime exitTime) {
-        this.exitTime = exitTime;
-        this.status = PositionStatus.CLOSED;
-        this.mappingStatus = MappingStatus.IN_PROGRESS;
-    }
-
     public void update(BigDecimal avgEntryPrice, BigDecimal avgExitPrice,
                        BigDecimal currentSize, Integer leverage, BigDecimal targetPrice,
                        BigDecimal stopLossPrice, LocalDateTime entryTime, LocalDateTime exitTime) {
@@ -142,7 +126,7 @@ public class Position extends BaseTimeEntity {
     }
 
     /**
-     * 오더 매핑 완료 → 포지션 계산 결과 반영
+     * 오더 매핑 완료 → 포지션 계산 결과 반영 (수동 재계산용)
      */
     public void applyMappingResult(BigDecimal avgExitPrice, BigDecimal realizedPnl,
                                     BigDecimal closedFee, BigDecimal openFee,
@@ -156,10 +140,58 @@ public class Position extends BaseTimeEntity {
         this.mappingStatus = MappingStatus.MAPPED;
     }
 
+    // ============ 오더 기반 포지션 재구성용 도메인 메서드 ============
+
     /**
-     * 오더 매핑 실패
+     * 진입 오더 반영: 가중평균 진입가 계산 + currentSize 증가
      */
-    public void failMapping() {
-        this.mappingStatus = MappingStatus.FAILED;
+    public void addEntry(BigDecimal price, BigDecimal qty, BigDecimal fee) {
+        BigDecimal oldNotional = this.avgEntryPrice.multiply(this.currentSize);
+        BigDecimal newNotional = price.multiply(qty);
+        this.currentSize = this.currentSize.add(qty);
+        this.avgEntryPrice = oldNotional.add(newNotional)
+                .divide(this.currentSize, 8, RoundingMode.HALF_UP);
+        this.openFee = (this.openFee != null ? this.openFee : BigDecimal.ZERO)
+                .add(fee != null ? fee : BigDecimal.ZERO);
+    }
+
+    /**
+     * 부분 청산 반영: closedSize, avgExitPrice, closedFee, realizedPnl 누적
+     */
+    public void addPartialClose(BigDecimal price, BigDecimal qty, BigDecimal fee, BigDecimal pnl) {
+        BigDecimal prevClosedSize = this.closedSize != null ? this.closedSize : BigDecimal.ZERO;
+        BigDecimal prevExitNotional = (this.avgExitPrice != null ? this.avgExitPrice : BigDecimal.ZERO)
+                .multiply(prevClosedSize);
+
+        this.closedSize = prevClosedSize.add(qty);
+        this.avgExitPrice = prevExitNotional.add(price.multiply(qty))
+                .divide(this.closedSize, 8, RoundingMode.HALF_UP);
+        this.currentSize = this.currentSize.subtract(qty);
+        this.closedFee = (this.closedFee != null ? this.closedFee : BigDecimal.ZERO)
+                .add(fee != null ? fee : BigDecimal.ZERO);
+        this.realizedPnl = (this.realizedPnl != null ? this.realizedPnl : BigDecimal.ZERO)
+                .add(pnl != null ? pnl : BigDecimal.ZERO);
+    }
+
+    /**
+     * 포지션 완전 종료: CLOSED + MAPPED (오더가 이미 매핑된 상태)
+     */
+    public void completeClose(LocalDateTime exitTime) {
+        this.exitTime = exitTime;
+        this.currentSize = BigDecimal.ZERO;
+        this.status = PositionStatus.CLOSED;
+        this.mappingStatus = MappingStatus.MAPPED;
+    }
+
+    public void updateLeverage(Integer leverage) {
+        if (leverage != null) this.leverage = leverage;
+    }
+
+    public void updateTargetPrice(BigDecimal targetPrice) {
+        this.targetPrice = targetPrice;
+    }
+
+    public void updateStopLossPrice(BigDecimal stopLossPrice) {
+        this.stopLossPrice = stopLossPrice;
     }
 }

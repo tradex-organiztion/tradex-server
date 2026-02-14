@@ -94,8 +94,7 @@ public class BinanceOrderService implements ExchangeOrderService {
         Integer positionIdx = convertPositionSideToIdx(item.getPositionSide());
 
         LocalDateTime orderTime = parseMillisToLocalDateTime(item.getTime());
-        LocalDateTime fillTime = "FILLED".equals(item.getStatus())
-                ? parseMillisToLocalDateTime(item.getUpdateTime()) : null;
+        LocalDateTime fillTime = parseMillisToLocalDateTime(item.getUpdateTime());
 
         return Order.builder()
                 .user(apiKey.getUser())

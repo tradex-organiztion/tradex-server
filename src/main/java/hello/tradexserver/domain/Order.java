@@ -10,6 +10,7 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 
 @Entity
@@ -103,6 +104,50 @@ public class Order {
 
     public void updateRealizedPnl(BigDecimal realizedPnl) {
         this.realizedPnl = realizedPnl;
+    }
+
+    public void correctPositionEffect(PositionEffect positionEffect) {
+        this.positionEffect = positionEffect;
+    }
+
+    /**
+     * 플립 오더 분할: 자신을 청산분(closeQty)으로 축소하고, 초과분(진입분)을 새 Order로 반환.
+     * 수수료(cumExecFee)는 수량 비율로 비례 분할한다.
+     */
+    public Order splitForFlip(BigDecimal closeQty) {
+        BigDecimal totalQty = this.filledQuantity;
+        BigDecimal openQty = totalQty.subtract(closeQty);
+
+        // 수수료 비례 분할
+        BigDecimal openFee = null;
+        if (this.cumExecFee != null && totalQty.compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal ratio = openQty.divide(totalQty, 8, RoundingMode.HALF_UP);
+            openFee = this.cumExecFee.multiply(ratio).setScale(8, RoundingMode.HALF_UP);
+            this.cumExecFee = this.cumExecFee.subtract(openFee);
+        }
+
+        // 자신을 청산 부분으로 축소
+        this.filledQuantity = closeQty;
+        this.positionEffect = PositionEffect.CLOSE;
+
+        // 진입 부분을 새 Order로 생성
+        return Order.builder()
+                .user(this.user)
+                .exchangeApiKey(this.exchangeApiKey)
+                .exchangeName(this.exchangeName)
+                .exchangeOrderId(this.exchangeOrderId + "_FLIP")
+                .symbol(this.symbol)
+                .side(this.side)
+                .orderType(this.orderType)
+                .positionEffect(PositionEffect.OPEN)
+                .filledQuantity(openQty)
+                .filledPrice(this.filledPrice)
+                .cumExecFee(openFee)
+                .status(this.status)
+                .orderTime(this.orderTime)
+                .fillTime(this.fillTime)
+                .positionIdx(this.positionIdx)
+                .build();
     }
 
     public void update(BigDecimal filledQuantity, BigDecimal filledPrice, BigDecimal cumExecFee,

@@ -172,16 +172,18 @@ public class BinanceWebSocketClient implements ExchangeWebSocketClient {
             log.info("[Binance] WebSocket 연결 성공 - user: {}", userId);
             subscribePosition();
 
-            // 재연결 시 Gap 보완
+            // 연결/재연결 시 Gap 보완 (첫 연결 시 gapStart=null)
             LocalDateTime gapStart = disconnectTime.getAndSet(null);
             if (gapStart != null) {
                 log.info("[Binance] 재연결 감지 - Gap 보완 시작 (gapStart: {}) - user: {}", gapStart, userId);
-                if (orderListener != null) {
-                    orderListener.onReconnected(exchangeApiKey, gapStart);
-                }
-                if (positionListener != null) {
-                    positionListener.onReconnected(exchangeApiKey);
-                }
+            } else {
+                log.info("[Binance] 첫 연결 - 초기 보완 시작 - user: {}", userId);
+            }
+            if (orderListener != null) {
+                orderListener.onReconnected(exchangeApiKey, gapStart);
+            }
+            if (positionListener != null) {
+                positionListener.onReconnected(exchangeApiKey);
             }
         }
 
@@ -368,7 +370,7 @@ public class BinanceWebSocketClient implements ExchangeWebSocketClient {
                     .realizedPnl(parseBigDecimal(o.path("rp").asText("0")))
                     .status(status)
                     .orderTime(parseMillisToLocalDateTime(tradeTime))
-                    .fillTime("FILLED".equals(orderStatus) ? parseMillisToLocalDateTime(tradeTime) : null)
+                    .fillTime(parseMillisToLocalDateTime(tradeTime))
                     .positionIdx(positionIdx)
                     .build();
         }

@@ -4,13 +4,23 @@ import hello.tradexserver.domain.ExchangeApiKey;
 import hello.tradexserver.domain.Order;
 import hello.tradexserver.domain.Position;
 import hello.tradexserver.domain.enums.ExchangeName;
+import hello.tradexserver.domain.enums.OrderSide;
 import hello.tradexserver.domain.enums.OrderStatus;
+import hello.tradexserver.domain.enums.OrderType;
 import hello.tradexserver.domain.enums.PositionEffect;
+import hello.tradexserver.domain.enums.PositionSide;
 import hello.tradexserver.openApi.rest.BybitRestClient;
+import hello.tradexserver.openApi.rest.dto.BinancePositionRisk;
+import hello.tradexserver.openApi.rest.dto.BitgetPositionItem;
 import hello.tradexserver.openApi.rest.dto.BybitClosedPnl;
 import hello.tradexserver.openApi.rest.dto.BybitClosedPnlData;
+import hello.tradexserver.openApi.rest.dto.BybitPositionRestItem;
 import hello.tradexserver.openApi.rest.order.ExchangeOrderService;
+import hello.tradexserver.openApi.rest.position.BinancePositionRestService;
+import hello.tradexserver.openApi.rest.position.BitgetPositionRestService;
+import hello.tradexserver.openApi.rest.position.BybitPositionRestService;
 import hello.tradexserver.openApi.webSocket.OrderListener;
+import hello.tradexserver.repository.ExchangeApiKeyRepository;
 import hello.tradexserver.repository.OrderRepository;
 import hello.tradexserver.repository.PositionRepository;
 import lombok.RequiredArgsConstructor;
@@ -21,8 +31,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -33,8 +46,13 @@ public class WebSocketOrderService implements OrderListener {
 
     private final OrderRepository orderRepository;
     private final PositionRepository positionRepository;
+    private final ExchangeApiKeyRepository exchangeApiKeyRepository;
+    private final PositionReconstructionService positionReconstructionService;
     private final Map<String, ExchangeOrderService> orderServiceMap;
     private final BybitRestClient bybitRestClient;
+    private final BybitPositionRestService bybitPositionRestService;
+    private final BinancePositionRestService binancePositionRestService;
+    private final BitgetPositionRestService bitgetPositionRestService;
 
     /**
      * WebSocket으로 수신한 Order를 즉시 DB에 저장
@@ -52,18 +70,106 @@ public class WebSocketOrderService implements OrderListener {
         orderRepository.save(order);
         log.info("[WSOrder] Order 저장 - symbol: {}, side: {}, status: {}, orderId: {}",
                 order.getSymbol(), order.getSide(), order.getStatus(), order.getExchangeOrderId());
+
+        positionReconstructionService.processOrder(order);
     }
 
     /**
-     * WebSocket 재연결 시 끊긴 구간의 Order를 REST API로 보완 조회
+     * WS 연결/재연결 시 통합 보완:
+     * 1. REST 포지션 조회 (심볼 수집 + 시드용)
+     * 2. 오더 gap fill → processOrdersBatch (포지션 자동 생성/종료)
+     * 3. REST 포지션 중 DB에 없는 것 → 가상 OPEN 오더로 시드 포지션 생성
+     * 4. DB에 있는 기존 포지션 → leverage 업데이트
+     *
+     * @param gapStartTime null이면 첫 연결 또는 서버 재시작
      */
     @Override
     @Async
     @Transactional
     public void onReconnected(ExchangeApiKey apiKey, LocalDateTime gapStartTime) {
-        log.info("[WSOrder] 재연결 Gap 보완 시작 - apiKeyId: {}, exchange: {}, gapStart: {}",
-                apiKey.getId(), apiKey.getExchangeName(), gapStartTime);
+        ExchangeApiKey freshApiKey = exchangeApiKeyRepository.findById(apiKey.getId()).orElse(null);
+        if (freshApiKey == null) {
+            log.warn("[WSOrder] API Key 조회 실패 - apiKeyId: {}", apiKey.getId());
+            return;
+        }
 
+        log.info("[WSOrder] 통합 보완 시작 - apiKeyId: {}, exchange: {}, gapStart: {}",
+                freshApiKey.getId(), freshApiKey.getExchangeName(), gapStartTime);
+
+        // 0. gapStartTime 결정: null이면 DB 마지막 오더 시간으로 대체
+        LocalDateTime effectiveGapStart = gapStartTime;
+        if (effectiveGapStart == null) {
+            effectiveGapStart = orderRepository.findLastFillTimeByApiKeyId(freshApiKey.getId()).orElse(null);
+            if (effectiveGapStart != null) {
+                log.info("[WSOrder] DB 마지막 오더 시간 기준 보완 - gapStart: {}", effectiveGapStart);
+            }
+        }
+
+        // 1. REST 포지션 조회 (심볼 수집 + 시드 생성용)
+        List<SeedPositionData> restPositions = fetchRestPositions(freshApiKey);
+        log.info("[WSOrder] REST 포지션 조회 완료 - {}건", restPositions.size());
+
+        // 2. 오더 gap fill
+        if (effectiveGapStart != null) {
+            fetchAndProcessGapOrders(freshApiKey, effectiveGapStart, restPositions);
+        } else {
+            log.info("[WSOrder] 오더 gap fill 스킵 - DB에 기존 오더 없음 (첫 연동)");
+        }
+
+        // 3. REST 포지션 중 DB에 없는 것 → 시드 오더 생성 + leverage 업데이트
+        supplementSeedOrders(freshApiKey, restPositions);
+
+        log.info("[WSOrder] 통합 보완 완료 - apiKeyId: {}", freshApiKey.getId());
+    }
+
+    // ============ REST 포지션 조회 ============
+
+    private record SeedPositionData(
+            String symbol, PositionSide side, BigDecimal avgEntryPrice,
+            BigDecimal currentSize, Integer leverage, Integer positionIdx
+    ) {}
+
+    private List<SeedPositionData> fetchRestPositions(ExchangeApiKey apiKey) {
+        try {
+            return switch (apiKey.getExchangeName()) {
+                case BYBIT -> bybitPositionRestService.getOpenPositions(apiKey).stream()
+                        .map(p -> new SeedPositionData(
+                                p.getSymbol(),
+                                convertBybitSide(p.getSide()),
+                                parseBigDecimal(p.getAvgPrice()),
+                                parseBigDecimal(p.getSize()),
+                                parseInteger(p.getLeverage()),
+                                p.getPositionIdx()
+                        )).collect(Collectors.toList());
+                case BINANCE -> binancePositionRestService.getOpenPositions(apiKey).stream()
+                        .map(p -> new SeedPositionData(
+                                p.getSymbol(),
+                                convertBinanceSide(p.getPositionSide(), p.getPositionAmt()),
+                                parseBigDecimal(p.getEntryPrice()),
+                                parseBigDecimal(p.getPositionAmt()).abs(),
+                                parseInteger(p.getLeverage()),
+                                convertBinancePositionSideToIdx(p.getPositionSide())
+                        )).collect(Collectors.toList());
+                case BITGET -> bitgetPositionRestService.getOpenPositions(apiKey).stream()
+                        .map(p -> new SeedPositionData(
+                                p.getInstId(),
+                                convertBitgetSide(p.getHoldSide(), p.getTotal()),
+                                parseBigDecimal(p.getOpenPriceAvg()),
+                                parseBigDecimal(p.getTotal()).abs(),
+                                parseInteger(p.getLeverage()),
+                                convertBitgetHoldSideToIdx(p.getHoldSide())
+                        )).collect(Collectors.toList());
+            };
+        } catch (Exception e) {
+            log.error("[WSOrder] REST 포지션 조회 실패 - apiKeyId: {}", apiKey.getId(), e);
+            return List.of();
+        }
+    }
+
+    // ============ 오더 gap fill ============
+
+    private void fetchAndProcessGapOrders(ExchangeApiKey apiKey, LocalDateTime gapStart,
+                                           List<SeedPositionData> restPositions) {
         String exchangeKey = apiKey.getExchangeName().name();
         ExchangeOrderService orderService = orderServiceMap.get(exchangeKey);
         if (orderService == null) {
@@ -73,12 +179,12 @@ public class WebSocketOrderService implements OrderListener {
 
         LocalDateTime now = LocalDateTime.now();
 
-        // Binance/Bitget은 symbol 필수 → DB OPEN 포지션 symbol 기준으로 조회
         List<Order> fetched;
         if (apiKey.getExchangeName() == ExchangeName.BINANCE || apiKey.getExchangeName() == ExchangeName.BITGET) {
-            fetched = fetchOrdersByOpenPositionSymbols(orderService, apiKey, gapStartTime, now);
+            Set<String> symbols = collectAllSymbols(apiKey, restPositions);
+            fetched = fetchOrdersBySymbols(orderService, apiKey, symbols, gapStart, now);
         } else {
-            fetched = orderService.fetchAndConvertOrders(apiKey, null, gapStartTime, now);
+            fetched = orderService.fetchAndConvertOrders(apiKey, null, gapStart, now);
         }
 
         if (fetched.isEmpty()) {
@@ -104,30 +210,38 @@ public class WebSocketOrderService implements OrderListener {
         orderRepository.saveAll(toSave);
         log.info("[WSOrder] Gap 보완 저장 완료 - apiKeyId: {}, {}건", apiKey.getId(), toSave.size());
 
+        positionReconstructionService.processOrdersBatch(toSave);
+
         // Bybit 전용: close 오더 closed-pnl 보완
         if (apiKey.getExchangeName() == ExchangeName.BYBIT) {
             List<Order> closeOrders = toSave.stream()
                     .filter(o -> o.getPositionEffect() == PositionEffect.CLOSE)
                     .collect(Collectors.toList());
             if (!closeOrders.isEmpty()) {
-                supplementClosedPnl(apiKey, closeOrders, gapStartTime, now);
+                supplementClosedPnl(apiKey, closeOrders, gapStart, now);
             }
         }
     }
 
     /**
-     * Binance용: DB OPEN 포지션 symbol 기준으로 오더 조회
+     * DB OPEN 포지션 심볼 + REST 포지션 심볼의 합집합 (Binance/Bitget 오더 조회용)
      */
-    private List<Order> fetchOrdersByOpenPositionSymbols(ExchangeOrderService orderService,
-                                                          ExchangeApiKey apiKey,
-                                                          LocalDateTime startTime,
-                                                          LocalDateTime endTime) {
-        List<Position> openPositions = positionRepository.findAllOpenByApiKeyId(apiKey.getId());
-        Set<String> symbols = openPositions.stream()
-                .map(Position::getSymbol)
-                .collect(Collectors.toSet());
+    private Set<String> collectAllSymbols(ExchangeApiKey apiKey, List<SeedPositionData> restPositions) {
+        Set<String> symbols = new HashSet<>();
 
-        List<Order> allOrders = new java.util.ArrayList<>();
+        // DB OPEN 포지션 심볼
+        List<Position> openPositions = positionRepository.findAllOpenByApiKeyId(apiKey.getId());
+        openPositions.forEach(p -> symbols.add(p.getSymbol()));
+
+        // REST 포지션 심볼
+        restPositions.forEach(p -> symbols.add(p.symbol()));
+
+        return symbols;
+    }
+
+    private List<Order> fetchOrdersBySymbols(ExchangeOrderService orderService, ExchangeApiKey apiKey,
+                                              Set<String> symbols, LocalDateTime startTime, LocalDateTime endTime) {
+        List<Order> allOrders = new ArrayList<>();
         for (String symbol : symbols) {
             List<Order> orders = orderService.fetchAndConvertOrders(apiKey, symbol, startTime, endTime);
             allOrders.addAll(orders);
@@ -135,9 +249,72 @@ public class WebSocketOrderService implements OrderListener {
         return allOrders;
     }
 
+    // ============ 시드 오더 생성 ============
+
     /**
-     * REST order/history에 없는 closedPnl을 closed-pnl API로 보완
+     * REST 포지션 중 DB에 없는 것 → 가상 OPEN 오더로 시드 포지션 생성
+     * DB에 있는 포지션 → leverage 업데이트
      */
+    private void supplementSeedOrders(ExchangeApiKey apiKey, List<SeedPositionData> restPositions) {
+        if (restPositions.isEmpty()) return;
+
+        for (SeedPositionData restPos : restPositions) {
+            Optional<Position> existingOpt = positionRepository.findOpenPositionByApiKey(
+                    apiKey.getId(), restPos.symbol(), restPos.side());
+
+            if (existingOpt.isPresent()) {
+                // 이미 DB에 있음 → leverage만 업데이트
+                Position existing = existingOpt.get();
+                existing.updateLeverage(restPos.leverage());
+                positionRepository.save(existing);
+                log.debug("[WSOrder] 보조 업데이트 - positionId: {}, symbol: {}", existing.getId(), restPos.symbol());
+            } else {
+                // DB에 없음 → 가상 OPEN 오더 생성 → processOrder로 포지션 생성
+                String seedOrderId = "SEED_" + apiKey.getId() + "_" + restPos.symbol() + "_" + restPos.side();
+
+                if (orderRepository.existsByExchangeOrderId(seedOrderId)) {
+                    log.debug("[WSOrder] 시드 오더 이미 존재 - {}", seedOrderId);
+                    continue;
+                }
+
+                OrderSide orderSide = (restPos.side() == PositionSide.LONG) ? OrderSide.BUY : OrderSide.SELL;
+
+                Order seedOrder = Order.builder()
+                        .user(apiKey.getUser())
+                        .exchangeApiKey(apiKey)
+                        .exchangeName(apiKey.getExchangeName())
+                        .exchangeOrderId(seedOrderId)
+                        .symbol(restPos.symbol())
+                        .side(orderSide)
+                        .orderType(OrderType.MARKET)
+                        .positionEffect(PositionEffect.OPEN)
+                        .filledQuantity(restPos.currentSize())
+                        .filledPrice(restPos.avgEntryPrice())
+                        .cumExecFee(BigDecimal.ZERO)
+                        .status(OrderStatus.FILLED)
+                        .orderTime(LocalDateTime.now())
+                        .fillTime(LocalDateTime.now())
+                        .positionIdx(restPos.positionIdx())
+                        .build();
+
+                orderRepository.save(seedOrder);
+                positionReconstructionService.processOrder(seedOrder);
+
+                // 생성된 포지션에 leverage 업데이트
+                positionRepository.findOpenPositionByApiKey(apiKey.getId(), restPos.symbol(), restPos.side())
+                        .ifPresent(p -> {
+                            p.updateLeverage(restPos.leverage());
+                            positionRepository.save(p);
+                        });
+
+                log.info("[WSOrder] 시드 포지션 생성 - symbol: {}, side: {}, size: {}, avgEntry: {}",
+                        restPos.symbol(), restPos.side(), restPos.currentSize(), restPos.avgEntryPrice());
+            }
+        }
+    }
+
+    // ============ Bybit closed-pnl 보완 ============
+
     private void supplementClosedPnl(ExchangeApiKey apiKey, List<Order> closeOrders,
                                       LocalDateTime startTime, LocalDateTime endTime) {
         BybitClosedPnlData pnlData = bybitRestClient.fetchClosedPnl(apiKey, null, startTime, endTime);
@@ -146,7 +323,6 @@ public class WebSocketOrderService implements OrderListener {
             return;
         }
 
-        // orderId → closedPnl 매핑
         Map<String, String> pnlMap = pnlData.getList().stream()
                 .collect(Collectors.toMap(
                         BybitClosedPnl::getOrderId,
@@ -169,6 +345,8 @@ public class WebSocketOrderService implements OrderListener {
         }
     }
 
+    // ============ 헬퍼 메서드 ============
+
     private boolean shouldSaveOrder(Order order) {
         return order.getStatus() == OrderStatus.FILLED
                 || (order.getStatus() == OrderStatus.CANCELED
@@ -176,8 +354,45 @@ public class WebSocketOrderService implements OrderListener {
                     && order.getFilledQuantity().compareTo(BigDecimal.ZERO) > 0);
     }
 
+    private PositionSide convertBybitSide(String side) {
+        return "Buy".equalsIgnoreCase(side) ? PositionSide.LONG : PositionSide.SHORT;
+    }
+
+    private PositionSide convertBinanceSide(String positionSide, String positionAmt) {
+        if ("LONG".equals(positionSide)) return PositionSide.LONG;
+        if ("SHORT".equals(positionSide)) return PositionSide.SHORT;
+        BigDecimal amt = parseBigDecimal(positionAmt);
+        return amt.compareTo(BigDecimal.ZERO) >= 0 ? PositionSide.LONG : PositionSide.SHORT;
+    }
+
+    private Integer convertBinancePositionSideToIdx(String positionSide) {
+        return switch (positionSide) {
+            case "LONG" -> 1;
+            case "SHORT" -> 2;
+            default -> 0; // BOTH = one-way
+        };
+    }
+
+    private PositionSide convertBitgetSide(String holdSide, String total) {
+        if ("long".equalsIgnoreCase(holdSide)) return PositionSide.LONG;
+        if ("short".equalsIgnoreCase(holdSide)) return PositionSide.SHORT;
+        BigDecimal amt = parseBigDecimal(total);
+        return amt.compareTo(BigDecimal.ZERO) >= 0 ? PositionSide.LONG : PositionSide.SHORT;
+    }
+
+    private Integer convertBitgetHoldSideToIdx(String holdSide) {
+        if ("long".equalsIgnoreCase(holdSide)) return 1;
+        if ("short".equalsIgnoreCase(holdSide)) return 2;
+        return 0; // net = one-way
+    }
+
     private BigDecimal parseBigDecimal(String value) {
         if (value == null || value.isEmpty()) return BigDecimal.ZERO;
         try { return new BigDecimal(value); } catch (NumberFormatException e) { return BigDecimal.ZERO; }
+    }
+
+    private Integer parseInteger(String value) {
+        if (value == null || value.isEmpty()) return null;
+        try { return Integer.parseInt(value); } catch (NumberFormatException e) { return null; }
     }
 }

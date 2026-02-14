@@ -111,6 +111,7 @@ public interface PositionRepository extends JpaRepository<Position, Long> {
 
     /**
      * exchangeApiKeyId + symbol + side + OPEN 상태로 조회 (WebSocket 업데이트용)
+     * 중복 저장 방지를 위해 entryTime 최신순 1건만 반환
      */
     @Query("""
         SELECT p FROM Position p
@@ -118,6 +119,8 @@ public interface PositionRepository extends JpaRepository<Position, Long> {
           AND p.symbol = :symbol
           AND p.side = :side
           AND p.status = 'OPEN'
+        ORDER BY p.entryTime DESC
+        LIMIT 1
         """)
     Optional<Position> findOpenPositionByApiKey(
             @Param("apiKeyId") Long apiKeyId,
@@ -126,15 +129,17 @@ public interface PositionRepository extends JpaRepository<Position, Long> {
     );
 
     /**
-     * 단방향 모드에서 side 없이 symbol만으로 OPEN 포지션 조회
+     * 단방향 모드에서 side 없이 symbol만으로 OPEN 포지션 조회 (entryTime 최신순)
+     * 중복이 있을 수 있으므로 List로 반환 → 서비스에서 최신 1건 사용, 나머지 종료 처리
      */
     @Query("""
         SELECT p FROM Position p
         WHERE p.exchangeApiKey.id = :apiKeyId
           AND p.symbol = :symbol
           AND p.status = 'OPEN'
+        ORDER BY p.entryTime DESC
         """)
-    Optional<Position> findOpenPositionByApiKeyAndSymbol(
+    List<Position> findOpenPositionsByApiKeyAndSymbol(
             @Param("apiKeyId") Long apiKeyId,
             @Param("symbol") String symbol
     );
