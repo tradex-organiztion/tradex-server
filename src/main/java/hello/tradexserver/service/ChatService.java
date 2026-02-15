@@ -1,6 +1,6 @@
 package hello.tradexserver.service;
 
-import hello.tradexserver.chat.DbChatMemory;
+import hello.tradexserver.domain.ChatMessage;
 import hello.tradexserver.domain.ChatSession;
 import hello.tradexserver.domain.User;
 import hello.tradexserver.dto.response.ChatHistoryResponse;
@@ -48,7 +48,6 @@ import static hello.tradexserver.exception.ErrorCode.USER_NOT_FOUND;
 public class ChatService {
 
     private final StreamingChatModel streamingChatModel;
-    private final DbChatMemory chatMemory;
     private final ChatSessionRepository chatSessionRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final UserRepository userRepository;
@@ -93,7 +92,7 @@ public class ChatService {
         ChatSession session = chatSessionRepository.findByIdAndUserId(sessionId, userId)
                 .orElseThrow(() -> new AuthException(SESSION_NOT_FOUND));
 
-        chatMemory.clear(sessionId.toString());
+        chatMessageRepository.deleteAllByChatSessionId(sessionId);
         chatSessionRepository.delete(session);
     }
 
@@ -112,7 +111,7 @@ public class ChatService {
                         .orElseThrow(() -> new AuthException(SESSION_NOT_FOUND));
 
                 // 메모리: 최근 MEMORY_LIMIT개 대화 조회
-                List<Message> memoryMessages = chatMemory.get(sessionId.toString(), MEMORY_LIMIT);
+                List<Message> memoryMessages = getMemoryMessages(sessionId);
 
                 // 현재 질문 구성 (파일 포함)
                 UserMessage currentMessage = buildUserMessage(question, files);
@@ -121,8 +120,8 @@ public class ChatService {
                 List<Message> allMessages = new ArrayList<>(memoryMessages);
                 allMessages.add(currentMessage);
                 Prompt prompt = new Prompt(allMessages);
-
                 log.info("Sending prompt to userId: {}, sessionId: {}, memory size: {}", userId, sessionId, memoryMessages.size());
+                allMessages.forEach(msg -> log.info("[{}] {}", msg.getMessageType(), msg.getContent()));
 
                 StringBuilder response = new StringBuilder();
                 streamingChatModel.stream(prompt)
@@ -146,10 +145,7 @@ public class ChatService {
                                     SecurityContextHolder.setContext(securityContext);
                                     try {
                                         // 메모리 저장
-                                        chatMemory.add(sessionId.toString(), List.of(
-                                                new UserMessage(question),
-                                                new AssistantMessage(response.toString())
-                                        ));
+                                        saveMessage(session, question, response.toString());
 
                                         // 첫 메시지인 경우 세션 title 자동 설정
                                         if (session.getTitle() == null) {
@@ -175,6 +171,27 @@ public class ChatService {
         }).start();
 
         return emitter;
+    }
+
+    private List<Message> getMemoryMessages(Long sessionId) {
+        List<ChatMessage> history = chatMessageRepository.findRecentBySessionId(sessionId, MEMORY_LIMIT);
+        List<Message> messages = new ArrayList<>();
+        // DESC로 조회됐으므로 역순으로 정렬 (오래된 것 먼저)
+        for (int i = history.size() - 1; i >= 0; i--) {
+            ChatMessage msg = history.get(i);
+            messages.add(new UserMessage(msg.getQuestion()));
+            messages.add(new AssistantMessage(msg.getResponse()));
+        }
+        return messages;
+    }
+
+    private void saveMessage(ChatSession session, String question, String response) {
+        chatMessageRepository.save(ChatMessage.builder()
+                .user(session.getUser())
+                .chatSession(session)
+                .question(question)
+                .response(response)
+                .build());
     }
 
     private UserMessage buildUserMessage(String question, List<MultipartFile> files) {
