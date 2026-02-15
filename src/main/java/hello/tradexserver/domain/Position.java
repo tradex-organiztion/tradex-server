@@ -5,6 +5,7 @@ import hello.tradexserver.domain.enums.MappingStatus;
 import hello.tradexserver.domain.enums.MarketCondition;
 import hello.tradexserver.domain.enums.PositionSide;
 import hello.tradexserver.domain.enums.PositionStatus;
+
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -110,6 +111,22 @@ public class Position extends BaseTimeEntity {
 
     public boolean isClosed() {
         return this.status == PositionStatus.CLOSED;
+    }
+
+    /**
+     * ROI (%) = realizedPnl × leverage / (avgEntryPrice × closedSize) × 100
+     * CLOSED이고 필요한 값이 모두 있을 때만 계산
+     */
+    public BigDecimal getRoi() {
+        if (realizedPnl == null || leverage == null || avgEntryPrice == null
+                || closedSize == null || closedSize.compareTo(BigDecimal.ZERO) == 0) {
+            return null;
+        }
+        BigDecimal denominator = avgEntryPrice.multiply(closedSize);
+        return realizedPnl
+                .multiply(BigDecimal.valueOf(leverage))
+                .divide(denominator, 4, RoundingMode.HALF_UP)
+                .multiply(BigDecimal.valueOf(100));
     }
 
     public void update(BigDecimal avgEntryPrice, BigDecimal avgExitPrice,

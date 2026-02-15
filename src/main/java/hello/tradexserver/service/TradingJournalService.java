@@ -17,9 +17,12 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -37,15 +40,33 @@ public class TradingJournalService {
      */
     @Transactional(readOnly = true)
     public Page<JournalSummaryResponse> getList(Long userId, String symbol, PositionSide side,
-                                                 PositionStatus positionStatus, int page, int size) {
+                                                 PositionStatus positionStatus,
+                                                 LocalDate startDate, LocalDate endDate,
+                                                 int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
 
-        boolean hasFilter = symbol != null || side != null || positionStatus != null;
-        Page<TradingJournal> journals = hasFilter
-                ? tradingJournalRepository.findByUserIdWithFilters(userId, symbol, side, positionStatus, pageable)
-                : tradingJournalRepository.findByUserId(userId, pageable);
+        Specification<TradingJournal> spec = Specification
+                .where((root, query, cb) -> cb.equal(root.get("user").get("id"), userId));
 
-        return journals.map(JournalSummaryResponse::from);
+        if (symbol != null) {
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("position").get("symbol"), symbol));
+        }
+        if (side != null) {
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("position").get("side"), side));
+        }
+        if (positionStatus != null) {
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("position").get("status"), positionStatus));
+        }
+        if (startDate != null) {
+            LocalDateTime startDateTime = startDate.atStartOfDay();
+            spec = spec.and((root, query, cb) -> cb.greaterThanOrEqualTo(root.get("createdAt"), startDateTime));
+        }
+        if (endDate != null) {
+            LocalDateTime endDateTime = endDate.atTime(23, 59, 59);
+            spec = spec.and((root, query, cb) -> cb.lessThanOrEqualTo(root.get("createdAt"), endDateTime));
+        }
+
+        return tradingJournalRepository.findAll(spec, pageable).map(JournalSummaryResponse::from);
     }
 
     /**
@@ -73,7 +94,8 @@ public class TradingJournalService {
 
         journal.update(
                 request.getPlannedTargetPrice(), request.getPlannedStopLoss(),
-                request.getEntryScenario(), request.getExitReview()
+                request.getEntryScenario(), request.getExitReview(),
+                request.getIndicators(), request.getTimeframes(), request.getTechnicalAnalyses()
         );
 
         tradingJournalRepository.save(journal);
