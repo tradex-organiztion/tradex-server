@@ -1,9 +1,13 @@
 package hello.tradexserver.service;
 
-import hello.tradexserver.domain.ChatMessage;
+import hello.tradexserver.chat.DbChatMemory;
+import hello.tradexserver.domain.ChatSession;
 import hello.tradexserver.domain.User;
+import hello.tradexserver.dto.response.ChatHistoryResponse;
+import hello.tradexserver.dto.response.ChatSessionResponse;
 import hello.tradexserver.exception.AuthException;
 import hello.tradexserver.repository.ChatMessageRepository;
+import hello.tradexserver.repository.ChatSessionRepository;
 import hello.tradexserver.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,11 +17,14 @@ import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.StreamingChatModel;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.model.Media;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.MimeType;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -32,6 +39,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
+import static hello.tradexserver.exception.ErrorCode.SESSION_NOT_FOUND;
 import static hello.tradexserver.exception.ErrorCode.USER_NOT_FOUND;
 
 @Slf4j
@@ -40,12 +48,56 @@ import static hello.tradexserver.exception.ErrorCode.USER_NOT_FOUND;
 public class ChatService {
 
     private final StreamingChatModel streamingChatModel;
+    private final DbChatMemory chatMemory;
+    private final ChatSessionRepository chatSessionRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final UserRepository userRepository;
 
-    private static final int HISTORY_LIMIT = 5;
+    private static final int MEMORY_LIMIT = 5;
+    private static final int TITLE_MAX_LENGTH = 30;
 
-    public SseEmitter streamChat(Long userId, String question, List<MultipartFile> files) {
+    @Transactional
+    public ChatSessionResponse createSession(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new AuthException(USER_NOT_FOUND));
+
+        ChatSession session = ChatSession.builder()
+                .user(user)
+                .build();
+
+        return new ChatSessionResponse(chatSessionRepository.save(session));
+    }
+
+    @Transactional(readOnly = true)
+    public List<ChatSessionResponse> getSessions(Long userId) {
+        return chatSessionRepository.findByUserIdOrderByCreatedAtDesc(userId)
+                .stream()
+                .map(ChatSessionResponse::new)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public ChatHistoryResponse getHistory(Long userId, Long sessionId) {
+        ChatSession session = chatSessionRepository.findByIdAndUserId(sessionId, userId)
+                .orElseThrow(() -> new AuthException(SESSION_NOT_FOUND));
+
+        return new ChatHistoryResponse(
+                session.getId(),
+                session.getTitle(),
+                chatMessageRepository.findAllByChatSessionIdOrderByCreatedAtAsc(sessionId)
+        );
+    }
+
+    @Transactional
+    public void deleteSession(Long userId, Long sessionId) {
+        ChatSession session = chatSessionRepository.findByIdAndUserId(sessionId, userId)
+                .orElseThrow(() -> new AuthException(SESSION_NOT_FOUND));
+
+        chatMemory.clear(sessionId.toString());
+        chatSessionRepository.delete(session);
+    }
+
+    public SseEmitter streamChat(Long userId, Long sessionId, String question, List<MultipartFile> files) {
         SseEmitter emitter = new SseEmitter(300000L);
 
         // Security Context 캡처 (현재 요청 스레드에서)
@@ -53,22 +105,25 @@ public class ChatService {
 
         new Thread(() -> {
             try {
-                // 새 스레드에 Security Context 설정
                 SecurityContextHolder.setContext(securityContext);
 
-                // 사용자 조회
-                User user = userRepository.findById(userId)
-                        .orElseThrow(() -> new AuthException(USER_NOT_FOUND));
+                // 세션 소유권 검증
+                ChatSession session = chatSessionRepository.findByIdAndUserId(sessionId, userId)
+                        .orElseThrow(() -> new AuthException(SESSION_NOT_FOUND));
 
-                // 채팅 히스토리 조회
-                List<ChatMessage> history = chatMessageRepository
-                        .findRecentHistory(userId, HISTORY_LIMIT);
+                // 메모리: 최근 MEMORY_LIMIT개 대화 조회
+                List<Message> memoryMessages = chatMemory.get(sessionId.toString(), MEMORY_LIMIT);
 
-                // 프롬프트 구성
-                Prompt prompt = buildPrompt(question, files, history);
-                log.info("Sending prompt to username: {}", user.getUsername());
+                // 현재 질문 구성 (파일 포함)
+                UserMessage currentMessage = buildUserMessage(question, files);
 
-                // 스트리밍 호출
+                // 최종 프롬프트: [메모리 메시지들... , 현재 질문]
+                List<Message> allMessages = new ArrayList<>(memoryMessages);
+                allMessages.add(currentMessage);
+                Prompt prompt = new Prompt(allMessages);
+
+                log.info("Sending prompt to userId: {}, sessionId: {}, memory size: {}", userId, sessionId, memoryMessages.size());
+
                 StringBuilder response = new StringBuilder();
                 streamingChatModel.stream(prompt)
                         .subscribe(
@@ -88,11 +143,22 @@ public class ChatService {
                                     emitter.completeWithError(error);
                                 },
                                 () -> {
-                                    // Reactor 스레드에 Security Context 설정
                                     SecurityContextHolder.setContext(securityContext);
                                     try {
-                                        // DB 저장
-                                        saveChatMessage(user, question, response.toString());
+                                        // 메모리 저장
+                                        chatMemory.add(sessionId.toString(), List.of(
+                                                new UserMessage(question),
+                                                new AssistantMessage(response.toString())
+                                        ));
+
+                                        // 첫 메시지인 경우 세션 title 자동 설정
+                                        if (session.getTitle() == null) {
+                                            String title = question.length() > TITLE_MAX_LENGTH
+                                                    ? question.substring(0, TITLE_MAX_LENGTH)
+                                                    : question;
+                                            session.updateTitle(title);
+                                            chatSessionRepository.save(session);
+                                        }
                                     } finally {
                                         SecurityContextHolder.clearContext();
                                     }
@@ -111,28 +177,12 @@ public class ChatService {
         return emitter;
     }
 
-    private Prompt buildPrompt(String question, List<MultipartFile> files, List<ChatMessage> history) {
-        StringBuilder textContent = new StringBuilder();
-
-        // 이전 대화 맥락
-        if (!history.isEmpty()) {
-            textContent.append("이전 대화:\n");
-            history.stream()
-                    .sorted((a, b) -> a.getCreatedAt().compareTo(b.getCreatedAt()))
-                    .forEach(msg -> {
-                        textContent.append("Q: ").append(msg.getQuestion()).append("\n");
-                        textContent.append("A: ").append(msg.getResponse()).append("\n\n");
-                    });
-        }
-
-        // 현재 질문
-        textContent.append("사용자 질문: ").append(question);
-
-        // 파일 처리
+    private UserMessage buildUserMessage(String question, List<MultipartFile> files) {
         List<Media> mediaList = new ArrayList<>();
-        StringBuilder fileContents = new StringBuilder();
+        StringBuilder textContent = new StringBuilder(question);
 
         if (files != null && !files.isEmpty()) {
+            StringBuilder fileContents = new StringBuilder();
             int fileIndex = 1;
             for (MultipartFile file : files) {
                 if (file == null || file.isEmpty()) continue;
@@ -142,28 +192,20 @@ public class ChatService {
                     fileContents.append("\n\n--- 파일 ").append(fileIndex).append(": ")
                             .append(file.getOriginalFilename()).append(" ---\n")
                             .append(fileContent);
-                    log.info(fileContents.toString());
                     fileIndex++;
                 }
             }
-
             if (!fileContents.isEmpty()) {
                 textContent.append("\n\n분석할 파일 내용:").append(fileContents);
             }
         }
 
-        log.info("Prompt text length: {} chars, Images: {}", textContent.length(), mediaList.size());
-//        log.info("Prompt text content: {}", textContent);
+        log.info("UserMessage text length: {} chars, images: {}", textContent.length(), mediaList.size());
 
-        // UserMessage 생성 (이미지가 있으면 Media와 함께)
-        UserMessage userMessage;
         if (!mediaList.isEmpty()) {
-            userMessage = new UserMessage(textContent.toString(), mediaList);
-        } else {
-            userMessage = new UserMessage(textContent.toString());
+            return new UserMessage(textContent.toString(), mediaList);
         }
-
-        return new Prompt(userMessage);
+        return new UserMessage(textContent.toString());
     }
 
     private String processFile(MultipartFile file, List<Media> mediaList) {
@@ -175,7 +217,6 @@ public class ChatService {
         }
 
         try {
-            // 이미지 파일
             if (contentType != null && contentType.startsWith("image/")) {
                 MimeType mimeType = MimeType.valueOf(contentType);
                 Media imageMedia = new Media(mimeType, file.getResource());
@@ -184,31 +225,26 @@ public class ChatService {
                 return null;
             }
 
-            // PDF 파일
             if (fileName.toLowerCase().endsWith(".pdf") ||
                     "application/pdf".equals(contentType)) {
                 return extractPdfText(file);
             }
 
-            // 엑셀 파일 (.xlsx)
             if (fileName.toLowerCase().endsWith(".xlsx") ||
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet".equals(contentType)) {
                 return extractExcelText(file, true);
             }
 
-            // 엑셀 파일 (.xls)
             if (fileName.toLowerCase().endsWith(".xls") ||
                     "application/vnd.ms-excel".equals(contentType)) {
                 return extractExcelText(file, false);
             }
 
-            // CSV 파일
             if (fileName.toLowerCase().endsWith(".csv") ||
                     "text/csv".equals(contentType)) {
                 return extractCsvText(file);
             }
 
-            // 기타 텍스트 파일
             String text = new String(file.getBytes(), StandardCharsets.UTF_8);
             log.info("Text file attached: {}", fileName);
             return text;
@@ -287,22 +323,11 @@ public class ChatService {
     }
 
     private String truncateIfNeeded(String text) {
-        // GPT 토큰 제한을 고려하여 최대 50000자로 제한
         int maxLength = 50000;
         if (text.length() > maxLength) {
             log.warn("Text truncated from {} to {} chars", text.length(), maxLength);
             return text.substring(0, maxLength) + "\n\n[... 내용이 길어 일부 생략됨 ...]";
         }
         return text;
-    }
-
-    private void saveChatMessage(User user, String question, String response) {
-        ChatMessage chatMessage = ChatMessage.builder()
-                .user(user)
-                .question(question)
-                .response(response)
-                .build();
-
-        chatMessageRepository.save(chatMessage);
     }
 }

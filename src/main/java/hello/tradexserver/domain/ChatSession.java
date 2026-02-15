@@ -7,12 +7,12 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "chat_message")
+@Table(name = "chat_session")
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ChatMessage extends BaseTimeEntity {
+public class ChatSession extends BaseTimeEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -22,13 +22,10 @@ public class ChatMessage extends BaseTimeEntity {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "session_id", nullable = false)
-    private ChatSession chatSession;
+    @Column(length = 100)
+    private String title;
 
-    @Column(columnDefinition = "TEXT")
-    private String question;
-
-    @Column(columnDefinition = "TEXT")
-    private String response;
+    public void updateTitle(String title) {
+        this.title = title;
+    }
 }
