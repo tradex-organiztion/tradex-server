@@ -5,6 +5,7 @@ import hello.tradexserver.domain.enums.ExchangeName;
 import hello.tradexserver.domain.enums.MarketCondition;
 import hello.tradexserver.domain.enums.PositionSide;
 import hello.tradexserver.domain.enums.PositionStatus;
+
 import lombok.Builder;
 import lombok.Getter;
 
@@ -32,6 +33,7 @@ public class PositionResponse {
     private BigDecimal closedFee;
     private MarketCondition marketCondition;
     private PositionStatus status;
+    private BigDecimal roi;
     private LocalDateTime createdAt;
 
     public static PositionResponse from(Position position) {
@@ -53,6 +55,7 @@ public class PositionResponse {
                 .closedFee(position.getClosedFee())
                 .marketCondition(position.getMarketCondition())
                 .status(position.getStatus())
+                .roi(position.getRoi())
                 .createdAt(position.getCreatedAt())
                 .build();
     }

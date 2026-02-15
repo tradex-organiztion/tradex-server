@@ -2,6 +2,7 @@ package hello.tradexserver.controller;
 
 import hello.tradexserver.domain.enums.PositionSide;
 import hello.tradexserver.domain.enums.PositionStatus;
+import java.time.LocalDate;
 import hello.tradexserver.dto.request.JournalRequest;
 import hello.tradexserver.dto.response.ApiResponse;
 import hello.tradexserver.dto.response.JournalDetailResponse;
@@ -31,7 +32,7 @@ public class TradingJournalController {
     @Operation(summary = "매매일지 목록 조회", description = """
             포지션 요약 정보를 포함한 매매일지 목록을 페이지네이션으로 조회합니다.
 
-            **필터링 옵션:** symbol, side (LONG/SHORT), positionStatus (OPEN/CLOSED)
+            **필터링 옵션:** symbol, side (LONG/SHORT), positionStatus (OPEN/CLOSED), startDate/endDate (yyyy-MM-dd)
             """)
     public ResponseEntity<ApiResponse<Page<JournalSummaryResponse>>> getList(
             @AuthenticationPrincipal CustomUserDetails userDetails,
@@ -41,11 +42,15 @@ public class TradingJournalController {
             @RequestParam(required = false) PositionSide side,
             @Parameter(description = "포지션 상태 (OPEN/CLOSED)")
             @RequestParam(required = false) PositionStatus positionStatus,
+            @Parameter(description = "조회 시작일 (yyyy-MM-dd)", example = "2025-01-01")
+            @RequestParam(required = false) LocalDate startDate,
+            @Parameter(description = "조회 종료일 (yyyy-MM-dd)", example = "2025-12-31")
+            @RequestParam(required = false) LocalDate endDate,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
     ) {
         Page<JournalSummaryResponse> response = tradingJournalService.getList(
-                userDetails.getUserId(), symbol, side, positionStatus, page, size);
+                userDetails.getUserId(), symbol, side, positionStatus, startDate, endDate, page, size);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 

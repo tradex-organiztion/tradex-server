@@ -5,6 +5,7 @@ import hello.tradexserver.domain.TradingJournal;
 import hello.tradexserver.domain.enums.ExchangeName;
 import hello.tradexserver.domain.enums.PositionSide;
 import hello.tradexserver.domain.enums.PositionStatus;
+
 import lombok.Builder;
 import lombok.Getter;
 
@@ -29,6 +30,7 @@ public class JournalSummaryResponse {
     private BigDecimal realizedPnl;
     private BigDecimal openFee;
     private BigDecimal closedFee;
+    private BigDecimal roi;
     private LocalDateTime createdAt;
 
     public static JournalSummaryResponse from(TradingJournal journal) {
@@ -48,6 +50,7 @@ public class JournalSummaryResponse {
                 .realizedPnl(position.getRealizedPnl())
                 .openFee(position.getOpenFee())
                 .closedFee(position.getClosedFee())
+                .roi(position.getRoi())
                 .createdAt(journal.getCreatedAt())
                 .build();
     }

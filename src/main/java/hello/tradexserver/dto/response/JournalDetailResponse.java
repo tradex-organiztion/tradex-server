@@ -5,6 +5,7 @@ import hello.tradexserver.domain.TradingJournal;
 import hello.tradexserver.domain.enums.ExchangeName;
 import hello.tradexserver.domain.enums.PositionSide;
 import hello.tradexserver.domain.enums.PositionStatus;
+
 import lombok.Builder;
 import lombok.Getter;
 
@@ -25,6 +26,9 @@ public class JournalDetailResponse {
     private BigDecimal plannedStopLoss;
     private String entryScenario;
     private String exitReview;
+    private List<String> indicators;
+    private List<String> timeframes;
+    private List<String> technicalAnalyses;
 
     // 포지션
     private ExchangeName exchangeName;
@@ -41,6 +45,7 @@ public class JournalDetailResponse {
     private BigDecimal closedFee;
     private BigDecimal targetPrice;
     private BigDecimal stopLossPrice;
+    private BigDecimal roi;
 
     // 오더 목록
     private List<OrderResponse> orders;
@@ -56,6 +61,9 @@ public class JournalDetailResponse {
                 .plannedStopLoss(journal.getPlannedStopLoss())
                 .entryScenario(journal.getEntryScenario())
                 .exitReview(journal.getExitReview())
+                .indicators(journal.getIndicators())
+                .timeframes(journal.getTimeframes())
+                .technicalAnalyses(journal.getTechnicalAnalyses())
                 .exchangeName(position.getExchangeName())
                 .symbol(position.getSymbol())
                 .side(position.getSide())
@@ -70,6 +78,7 @@ public class JournalDetailResponse {
                 .closedFee(position.getClosedFee())
                 .targetPrice(position.getTargetPrice())
                 .stopLossPrice(position.getStopLossPrice())
+                .roi(position.getRoi())
                 .orders(orders)
                 .createdAt(journal.getCreatedAt())
                 .build();
