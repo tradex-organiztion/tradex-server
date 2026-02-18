@@ -3,6 +3,7 @@ package hello.tradexserver.service;
 import hello.tradexserver.domain.ChatMessage;
 import hello.tradexserver.domain.ChatSession;
 import hello.tradexserver.domain.User;
+import hello.tradexserver.dto.chat.JournalSearchRequest;
 import hello.tradexserver.dto.response.ChatHistoryResponse;
 import hello.tradexserver.dto.response.ChatSessionResponse;
 import hello.tradexserver.exception.AuthException;
@@ -19,10 +20,13 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.StreamingChatModel;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.model.Media;
+import org.springframework.ai.model.function.FunctionCallbackWrapper;
+import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.MimeType;
@@ -51,6 +55,7 @@ public class ChatService {
     private final ChatSessionRepository chatSessionRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final UserRepository userRepository;
+    private final ChatContextService chatContextService;
 
     private static final int MEMORY_LIMIT = 5;
     private static final int TITLE_MAX_LENGTH = 30;
@@ -116,10 +121,28 @@ public class ChatService {
                 // 현재 질문 구성 (파일 포함)
                 UserMessage currentMessage = buildUserMessage(question, files);
 
-                // 최종 프롬프트: [메모리 메시지들... , 현재 질문]
-                List<Message> allMessages = new ArrayList<>(memoryMessages);
+                // SystemMessage 주입 (개인화된 트레이딩 컨텍스트)
+                SystemMessage systemMessage = chatContextService.buildSystemMessage(userId);
+
+                // FunctionCallback 등록 (매매일지 검색)
+                FunctionCallbackWrapper<JournalSearchRequest, ?> journalCallback =
+                        FunctionCallbackWrapper.builder(
+                                        (JournalSearchRequest req) -> chatContextService.searchJournals(userId, req))
+                                .withName("searchTradingJournals")
+                                .withDescription("트레이더의 매매일지를 검색합니다. 특정 심볼이나 기간의 매매 상세 내역이 필요할 때 호출하세요.")
+                                .withInputType(JournalSearchRequest.class)
+                                .build();
+
+                OpenAiChatOptions options = new OpenAiChatOptions.Builder()
+                        .withFunctionCallbacks(List.of(journalCallback))
+                        .build();
+
+                // 최종 프롬프트: [시스템 메시지, 메모리 메시지들... , 현재 질문]
+                List<Message> allMessages = new ArrayList<>();
+                allMessages.add(systemMessage);
+                allMessages.addAll(memoryMessages);
                 allMessages.add(currentMessage);
-                Prompt prompt = new Prompt(allMessages);
+                Prompt prompt = new Prompt(allMessages, options);
                 log.info("Sending prompt to userId: {}, sessionId: {}, memory size: {}", userId, sessionId, memoryMessages.size());
                 allMessages.forEach(msg -> log.info("[{}] {}", msg.getMessageType(), msg.getContent()));
 
