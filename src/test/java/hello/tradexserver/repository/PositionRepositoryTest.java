@@ -21,7 +21,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Disabled
 class PositionRepositoryTest {
 
     @Autowired
@@ -60,6 +59,7 @@ class PositionRepositoryTest {
                 .side(side)
                 .exchangeName(exchangeName)
                 .avgEntryPrice(new BigDecimal("40000"))
+                .currentSize(status == PositionStatus.OPEN ? new BigDecimal("0.1") : BigDecimal.ZERO)
                 .closedSize(new BigDecimal("0.1"))
                 .leverage(10)
                 .entryTime(LocalDateTime.now().minusDays(1))

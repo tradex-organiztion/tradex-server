@@ -6,14 +6,14 @@ spring:
     name: tradex-server
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/tradex_test
+    url: jdbc:postgresql://tradex-db.cjc4aimu2sf7.ap-northeast-2.rds.amazonaws.com/tradex
     username: postgres
-    password: postgres
+    password: xmfpdleprtm0101
     driver-class-name: org.postgresql.Driver
 
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: update
     show-sql: true
     properties:
       hibernate:
