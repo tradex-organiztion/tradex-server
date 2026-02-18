@@ -1,8 +1,6 @@
 package hello.tradexserver.repository;
 
 import hello.tradexserver.domain.Position;
-import hello.tradexserver.domain.enums.PositionSide;
-import hello.tradexserver.domain.enums.PositionStatus;
 import hello.tradexserver.domain.enums.ExchangeName;
 import hello.tradexserver.domain.enums.PositionSide;
 import hello.tradexserver.domain.enums.PositionStatus;
@@ -33,15 +31,23 @@ public interface PositionRepository extends JpaRepository<Position, Long> {
     // 종료된 포지션 목록 조회 (상태 + 심볼 + 방향 필터링)
     Page<Position> findByUserIdAndStatusAndSymbolAndSide(Long userId, PositionStatus status, String symbol, PositionSide side, Pageable pageable);
 
+    // 거래소별 종료된 포지션 목록 조회
+    Page<Position> findByUserIdAndStatusAndExchangeName(Long userId, PositionStatus status, ExchangeName exchangeName, Pageable pageable);
+    Page<Position> findByUserIdAndStatusAndExchangeNameAndSymbol(Long userId, PositionStatus status, ExchangeName exchangeName, String symbol, Pageable pageable);
+    Page<Position> findByUserIdAndStatusAndExchangeNameAndSide(Long userId, PositionStatus status, ExchangeName exchangeName, PositionSide side, Pageable pageable);
+    Page<Position> findByUserIdAndStatusAndExchangeNameAndSymbolAndSide(Long userId, PositionStatus status, ExchangeName exchangeName, String symbol, PositionSide side, Pageable pageable);
+
     // 기간 내 종료된 포지션 목록 조회 (시계열 차트용)
     @Query("SELECT p FROM Position p WHERE p.user.id = :userId " +
             "AND p.status = :status " +
+            "AND (:exchangeName IS NULL OR p.exchangeName = :exchangeName) " +
             "AND p.exitTime >= :startDate " +
             "ORDER BY p.exitTime ASC")
     List<Position> findClosedPositionsByPeriod(
             @Param("userId") Long userId,
             @Param("status") PositionStatus status,
-            @Param("startDate") LocalDateTime startDate);
+            @Param("startDate") LocalDateTime startDate,
+            @Param("exchangeName") ExchangeName exchangeName);
 
     // 선물 거래 요약 통계 (총 손익, 승/패 횟수)
     @Query(value = "SELECT COALESCE(SUM(realized_pnl), 0) as total_pnl, " +
@@ -50,23 +56,27 @@ public interface PositionRepository extends JpaRepository<Position, Long> {
             "COUNT(*) as total_count " +
             "FROM positions WHERE user_id = :userId " +
             "AND status = :status " +
+            "AND (CAST(:exchangeName AS VARCHAR) IS NULL OR exchange_name = :exchangeName) " +
             "AND (CAST(:startDate AS TIMESTAMP) IS NULL OR exit_time >= :startDate)",
             nativeQuery = true)
     Object[] getFuturesSummaryStats(
             @Param("userId") Long userId,
             @Param("status") String status,
-            @Param("startDate") LocalDateTime startDate);
+            @Param("startDate") LocalDateTime startDate,
+            @Param("exchangeName") String exchangeName);
 
     // 거래 규모 합계 (entryPrice * closedSize * leverage)
     @Query(value = "SELECT COALESCE(SUM(avg_entry_price * closed_size * COALESCE(leverage, 1)), 0) " +
             "FROM positions WHERE user_id = :userId " +
             "AND status = :status " +
+            "AND (CAST(:exchangeName AS VARCHAR) IS NULL OR exchange_name = :exchangeName) " +
             "AND (CAST(:startDate AS TIMESTAMP) IS NULL OR exit_time >= :startDate)",
             nativeQuery = true)
     BigDecimal getTotalVolume(
             @Param("userId") Long userId,
             @Param("status") String status,
-            @Param("startDate") LocalDateTime startDate);
+            @Param("startDate") LocalDateTime startDate,
+            @Param("exchangeName") String exchangeName);
 
     // 페어별 손익 랭킹
     @Query(value = "SELECT symbol, " +
@@ -75,6 +85,7 @@ public interface PositionRepository extends JpaRepository<Position, Long> {
             "SUM(CASE WHEN realized_pnl > 0 THEN 1 ELSE 0 END) as win_count " +
             "FROM positions WHERE user_id = :userId " +
             "AND status = :status " +
+            "AND (CAST(:exchangeName AS VARCHAR) IS NULL OR exchange_name = :exchangeName) " +
             "AND (CAST(:startDate AS TIMESTAMP) IS NULL OR exit_time >= :startDate) " +
             "GROUP BY symbol " +
             "ORDER BY SUM(realized_pnl) DESC",
@@ -82,7 +93,8 @@ public interface PositionRepository extends JpaRepository<Position, Long> {
     List<Object[]> getProfitRankingBySymbol(
             @Param("userId") Long userId,
             @Param("status") String status,
-            @Param("startDate") LocalDateTime startDate);
+            @Param("startDate") LocalDateTime startDate,
+            @Param("exchangeName") String exchangeName);
 
     // 종료 포지션 요약 (롱/숏별 손익)
     @Query(value = "SELECT COUNT(*) as total_count, " +
@@ -93,12 +105,14 @@ public interface PositionRepository extends JpaRepository<Position, Long> {
             "SUM(CASE WHEN side = 'SHORT' THEN 1 ELSE 0 END) as short_count " +
             "FROM positions WHERE user_id = :userId " +
             "AND status = :status " +
+            "AND (CAST(:exchangeName AS VARCHAR) IS NULL OR exchange_name = :exchangeName) " +
             "AND (CAST(:startDate AS TIMESTAMP) IS NULL OR exit_time >= :startDate)",
             nativeQuery = true)
     Object[] getClosedPositionsSummary(
             @Param("userId") Long userId,
             @Param("status") String status,
-            @Param("startDate") LocalDateTime startDate);
+            @Param("startDate") LocalDateTime startDate,
+            @Param("exchangeName") String exchangeName);
 
     @Query("SELECT p FROM Position p WHERE p.user.id = :userId " +
             "AND p.exchangeName = :exchangeName AND p.symbol = :symbol " +

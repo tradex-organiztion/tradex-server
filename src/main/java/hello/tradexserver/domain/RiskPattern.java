@@ -1,5 +1,6 @@
 package hello.tradexserver.domain;
 
+import hello.tradexserver.domain.enums.ExchangeName;
 import io.hypersistence.utils.hibernate.type.json.JsonType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -16,7 +17,7 @@ import java.util.Map;
 
 @Entity
 @Table(name = "risk_patterns",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"user_id"}))
+        uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "exchange_name"}))
 @EntityListeners(AuditingEntityListener.class)
 @Getter
 @NoArgsConstructor
@@ -28,9 +29,13 @@ public class RiskPattern {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false, unique = true)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
     private User user;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 10)
+    private ExchangeName exchangeName;
 
     @Builder.Default
     private Integer unplannedEntryCount = 0;
