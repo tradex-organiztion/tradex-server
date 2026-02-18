@@ -1,6 +1,7 @@
 package hello.tradexserver.service;
 
 import hello.tradexserver.domain.Position;
+import hello.tradexserver.domain.enums.ExchangeName;
 import hello.tradexserver.domain.enums.PositionSide;
 import hello.tradexserver.domain.enums.PositionStatus;
 import hello.tradexserver.dto.response.futures.*;
@@ -32,11 +33,11 @@ public class FuturesService {
      * 선물 거래 요약 조회
      * - 총 손익, 거래 규모, 승률, 손익 차트
      */
-    public FuturesSummaryResponse getFuturesSummary(Long userId, String period) {
+    public FuturesSummaryResponse getFuturesSummary(Long userId, String period, String exchangeName) {
         LocalDateTime startDate = getStartDateFromPeriod(period);
 
         // 요약 통계 조회
-        Object[] stats = positionRepository.getFuturesSummaryStats(userId, "CLOSED", startDate);
+        Object[] stats = positionRepository.getFuturesSummaryStats(userId, "CLOSED", startDate, exchangeName);
 
         BigDecimal totalPnl = BigDecimal.ZERO;
         int winCount = 0;
@@ -52,7 +53,7 @@ public class FuturesService {
         }
 
         // 거래 규모 조회
-        BigDecimal totalVolume = positionRepository.getTotalVolume(userId, "CLOSED", startDate);
+        BigDecimal totalVolume = positionRepository.getTotalVolume(userId, "CLOSED", startDate, exchangeName);
         if (totalVolume == null) {
             totalVolume = BigDecimal.ZERO;
         }
@@ -66,8 +67,9 @@ public class FuturesService {
         }
 
         // 손익 차트 데이터 (기간 내 종료 포지션 기준)
+        ExchangeName exchangeEnum = exchangeName != null ? ExchangeName.valueOf(exchangeName) : null;
         List<Position> positions = positionRepository.findClosedPositionsByPeriod(
-                userId, PositionStatus.CLOSED, startDate);
+                userId, PositionStatus.CLOSED, startDate, exchangeEnum);
 
         List<FuturesSummaryResponse.PnlChartData> pnlChart = buildPnlChart(positions);
 
@@ -85,10 +87,10 @@ public class FuturesService {
     /**
      * 페어별 손익 랭킹 조회
      */
-    public ProfitRankingResponse getProfitRanking(Long userId, String period) {
+    public ProfitRankingResponse getProfitRanking(Long userId, String period, String exchangeName) {
         LocalDateTime startDate = getStartDateFromPeriod(period);
 
-        List<Object[]> rankings = positionRepository.getProfitRankingBySymbol(userId, "CLOSED", startDate);
+        List<Object[]> rankings = positionRepository.getProfitRankingBySymbol(userId, "CLOSED", startDate, exchangeName);
 
         List<ProfitRankingResponse.PairProfit> pairProfits = new ArrayList<>();
         int rank = 1;
@@ -123,10 +125,10 @@ public class FuturesService {
     /**
      * 종료 포지션 요약 조회
      */
-    public ClosedPositionsSummaryResponse getClosedPositionsSummary(Long userId, String period) {
+    public ClosedPositionsSummaryResponse getClosedPositionsSummary(Long userId, String period, String exchangeName) {
         LocalDateTime startDate = getStartDateFromPeriod(period);
 
-        Object[] stats = positionRepository.getClosedPositionsSummary(userId, "CLOSED", startDate);
+        Object[] stats = positionRepository.getClosedPositionsSummary(userId, "CLOSED", startDate, exchangeName);
 
         int totalCount = 0;
         int winCount = 0;
@@ -166,21 +168,38 @@ public class FuturesService {
      * 종료 포지션 목록 조회
      */
     public Page<ClosedPositionResponse> getClosedPositions(Long userId, String symbol,
-                                                            PositionSide side, Pageable pageable) {
+                                                            PositionSide side, String exchangeName, Pageable pageable) {
         Page<Position> positions;
+        ExchangeName exchangeEnum = exchangeName != null ? ExchangeName.valueOf(exchangeName) : null;
 
-        if (symbol != null && side != null) {
-            positions = positionRepository.findByUserIdAndStatusAndSymbolAndSide(
-                    userId, PositionStatus.CLOSED, symbol, side, pageable);
-        } else if (symbol != null) {
-            positions = positionRepository.findByUserIdAndStatusAndSymbol(
-                    userId, PositionStatus.CLOSED, symbol, pageable);
-        } else if (side != null) {
-            positions = positionRepository.findByUserIdAndStatusAndSide(
-                    userId, PositionStatus.CLOSED, side, pageable);
+        if (exchangeEnum != null) {
+            if (symbol != null && side != null) {
+                positions = positionRepository.findByUserIdAndStatusAndExchangeNameAndSymbolAndSide(
+                        userId, PositionStatus.CLOSED, exchangeEnum, symbol, side, pageable);
+            } else if (symbol != null) {
+                positions = positionRepository.findByUserIdAndStatusAndExchangeNameAndSymbol(
+                        userId, PositionStatus.CLOSED, exchangeEnum, symbol, pageable);
+            } else if (side != null) {
+                positions = positionRepository.findByUserIdAndStatusAndExchangeNameAndSide(
+                        userId, PositionStatus.CLOSED, exchangeEnum, side, pageable);
+            } else {
+                positions = positionRepository.findByUserIdAndStatusAndExchangeName(
+                        userId, PositionStatus.CLOSED, exchangeEnum, pageable);
+            }
         } else {
-            positions = positionRepository.findByUserIdAndStatus(
-                    userId, PositionStatus.CLOSED, pageable);
+            if (symbol != null && side != null) {
+                positions = positionRepository.findByUserIdAndStatusAndSymbolAndSide(
+                        userId, PositionStatus.CLOSED, symbol, side, pageable);
+            } else if (symbol != null) {
+                positions = positionRepository.findByUserIdAndStatusAndSymbol(
+                        userId, PositionStatus.CLOSED, symbol, pageable);
+            } else if (side != null) {
+                positions = positionRepository.findByUserIdAndStatusAndSide(
+                        userId, PositionStatus.CLOSED, side, pageable);
+            } else {
+                positions = positionRepository.findByUserIdAndStatus(
+                        userId, PositionStatus.CLOSED, pageable);
+            }
         }
 
         return positions.map(ClosedPositionResponse::from);

@@ -49,8 +49,10 @@ public class FuturesController {
     public ApiResponse<FuturesSummaryResponse> getFuturesSummary(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Parameter(description = "기간 (7d, 30d, 60d, 90d, 180d, all)")
-            @RequestParam(defaultValue = "30d") String period) {
-        return ApiResponse.success(futuresService.getFuturesSummary(userDetails.getUserId(), period));
+            @RequestParam(defaultValue = "30d") String period,
+            @Parameter(description = "거래소 (BYBIT, BINANCE, BITGET)")
+            @RequestParam(required = false) String exchange) {
+        return ApiResponse.success(futuresService.getFuturesSummary(userDetails.getUserId(), period, exchange));
     }
 
     @GetMapping("/profit-ranking")
@@ -65,8 +67,10 @@ public class FuturesController {
     public ApiResponse<ProfitRankingResponse> getProfitRanking(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Parameter(description = "기간 (7d, 30d, 60d, 90d, 180d, all)")
-            @RequestParam(defaultValue = "30d") String period) {
-        return ApiResponse.success(futuresService.getProfitRanking(userDetails.getUserId(), period));
+            @RequestParam(defaultValue = "30d") String period,
+            @Parameter(description = "거래소 (BYBIT, BINANCE, BITGET)")
+            @RequestParam(required = false) String exchange) {
+        return ApiResponse.success(futuresService.getProfitRanking(userDetails.getUserId(), period, exchange));
     }
 
     @GetMapping("/closed-positions/summary")
@@ -80,8 +84,10 @@ public class FuturesController {
     public ApiResponse<ClosedPositionsSummaryResponse> getClosedPositionsSummary(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Parameter(description = "기간 (7d, 30d, 60d, 90d, 180d, all)")
-            @RequestParam(defaultValue = "30d") String period) {
-        return ApiResponse.success(futuresService.getClosedPositionsSummary(userDetails.getUserId(), period));
+            @RequestParam(defaultValue = "30d") String period,
+            @Parameter(description = "거래소 (BYBIT, BINANCE, BITGET)")
+            @RequestParam(required = false) String exchange) {
+        return ApiResponse.success(futuresService.getClosedPositionsSummary(userDetails.getUserId(), period, exchange));
     }
 
     @GetMapping("/closed-positions")
@@ -97,10 +103,12 @@ public class FuturesController {
             @RequestParam(required = false) String symbol,
             @Parameter(description = "포지션 방향 (LONG/SHORT)")
             @RequestParam(required = false) PositionSide side,
+            @Parameter(description = "거래소 (BYBIT, BINANCE, BITGET)")
+            @RequestParam(required = false) String exchange,
             @PageableDefault(size = 20, sort = "exitTime", direction = Sort.Direction.DESC)
             Pageable pageable) {
         return ApiResponse.success(futuresService.getClosedPositions(
-                userDetails.getUserId(), symbol, side, pageable));
+                userDetails.getUserId(), symbol, side, exchange, pageable));
     }
 
     // ── 포지션 CRUD ───────────────────────────────────────────────────────
