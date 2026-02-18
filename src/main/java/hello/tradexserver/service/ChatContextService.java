@@ -70,6 +70,8 @@ public class ChatContextService {
     }
 
     public JournalSearchResponse searchJournals(Long userId, JournalSearchRequest request) {
+        log.info("[Function Call] searchTradingJournals 호출 - userId: {}, symbol: {}, startDate: {}",
+                userId, request.symbol(), request.startDate());
         String symbol = request.symbol();
         LocalDateTime startDate = null;
 
