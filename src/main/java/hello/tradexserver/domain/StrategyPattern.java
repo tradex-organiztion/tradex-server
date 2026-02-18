@@ -1,5 +1,6 @@
 package hello.tradexserver.domain;
 
+import hello.tradexserver.domain.enums.ExchangeName;
 import hello.tradexserver.domain.enums.MarketCondition;
 import hello.tradexserver.domain.enums.PositionSide;
 import io.hypersistence.utils.hibernate.type.json.JsonType;
@@ -19,7 +20,7 @@ import java.util.Map;
 @Entity
 @Table(name = "strategy_patterns",
         uniqueConstraints = @UniqueConstraint(columnNames = {
-                "user_id", "indicators", "technical_analysis", "timeframes",
+                "user_id", "exchange_name", "indicators", "technical_analysis", "timeframes",
                 "trading_style", "position_side", "market_condition"
         }))
 @EntityListeners(AuditingEntityListener.class)
@@ -36,6 +37,10 @@ public class StrategyPattern {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 10)
+    private ExchangeName exchangeName;
 
     @Type(JsonType.class)
     @Column(columnDefinition = "jsonb")
