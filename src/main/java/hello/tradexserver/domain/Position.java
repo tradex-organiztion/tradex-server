@@ -211,4 +211,8 @@ public class Position extends BaseTimeEntity {
     public void updateStopLossPrice(BigDecimal stopLossPrice) {
         this.stopLossPrice = stopLossPrice;
     }
+
+    public void updateMarketCondition(MarketCondition marketCondition) {
+        this.marketCondition = marketCondition;
+    }
 }
