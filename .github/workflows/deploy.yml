@@ -87,17 +87,18 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             echo "Waiting for server to start..."
-            sleep 30
+            sleep 60
 
-            for i in {1..10}; do
-              if curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/actuator/health | grep -q "200"; then
+            for i in {1..20}; do
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/actuator/health)
+              echo "Attempt $i: HTTP $STATUS"
+              if [ "$STATUS" = "200" ]; then
                 echo "✅ Server is healthy!"
                 exit 0
               fi
-              echo "Attempt $i: Server not ready, waiting..."
               sleep 10
             done
 
             echo "❌ Server health check failed!"
-            docker logs tradex-server --tail 50
+            docker logs tradex-server --tail 100
             exit 1
