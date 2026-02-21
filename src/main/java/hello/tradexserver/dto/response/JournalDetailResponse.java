@@ -3,6 +3,7 @@ package hello.tradexserver.dto.response;
 import hello.tradexserver.domain.Position;
 import hello.tradexserver.domain.TradingJournal;
 import hello.tradexserver.domain.enums.ExchangeName;
+import hello.tradexserver.domain.enums.MarketCondition;
 import hello.tradexserver.domain.enums.PositionSide;
 import hello.tradexserver.domain.enums.PositionStatus;
 
@@ -34,6 +35,7 @@ public class JournalDetailResponse {
     private ExchangeName exchangeName;
     private String symbol;
     private PositionSide side;
+    private MarketCondition marketCondition;
     private Integer leverage;
     private PositionStatus positionStatus;
     private LocalDateTime entryTime;
@@ -67,6 +69,7 @@ public class JournalDetailResponse {
                 .exchangeName(position.getExchangeName())
                 .symbol(position.getSymbol())
                 .side(position.getSide())
+                .marketCondition(position.getMarketCondition())
                 .leverage(position.getLeverage())
                 .positionStatus(position.getStatus())
                 .entryTime(position.getEntryTime())

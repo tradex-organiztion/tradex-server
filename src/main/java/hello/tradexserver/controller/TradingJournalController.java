@@ -1,11 +1,16 @@
 package hello.tradexserver.controller;
 
+import hello.tradexserver.domain.enums.MarketCondition;
 import hello.tradexserver.domain.enums.PositionSide;
 import hello.tradexserver.domain.enums.PositionStatus;
 import java.time.LocalDate;
+import java.util.List;
 import hello.tradexserver.dto.request.JournalRequest;
+import hello.tradexserver.dto.request.JournalStatsFilterRequest;
 import hello.tradexserver.dto.response.ApiResponse;
 import hello.tradexserver.dto.response.JournalDetailResponse;
+import hello.tradexserver.dto.response.JournalStatsOptionsResponse;
+import hello.tradexserver.dto.response.JournalStatsResponse;
 import hello.tradexserver.dto.response.JournalSummaryResponse;
 import hello.tradexserver.security.CustomUserDetails;
 import hello.tradexserver.service.TradingJournalService;
@@ -27,6 +32,37 @@ import org.springframework.web.bind.annotation.*;
 public class TradingJournalController {
 
     private final TradingJournalService tradingJournalService;
+
+    @GetMapping("/stats/options")
+    @Operation(summary = "통계 필터 선택지 조회", description = "사용자가 입력한 indicators, timeframes, technicalAnalyses 고유값 목록을 반환합니다.")
+    public ResponseEntity<ApiResponse<JournalStatsOptionsResponse>> getStatsOptions(
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        return ResponseEntity.ok(ApiResponse.success(
+                tradingJournalService.getStatsOptions(userDetails.getUserId())));
+    }
+
+    @GetMapping("/stats")
+    @Operation(summary = "매매일지 통계 조회", description = """
+            선택한 필터 조건(AND)에 해당하는 CLOSED 포지션들의 통합 통계를 반환합니다.
+            아무 필터도 선택하지 않으면 전체 CLOSED 포지션 대상입니다.
+
+            **tradingStyle:** SCALPING (1일 미만 보유) | SWING (1일 이상 보유)
+            """)
+    public ResponseEntity<ApiResponse<JournalStatsResponse>> getStats(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @Parameter(description = "지표 (복수 선택 가능)") @RequestParam(required = false) List<String> indicators,
+            @Parameter(description = "타임프레임 (복수 선택 가능)") @RequestParam(required = false) List<String> timeframes,
+            @Parameter(description = "기술적 분석 (복수 선택 가능)") @RequestParam(required = false) List<String> technicalAnalyses,
+            @Parameter(description = "트레이딩 스타일 (SCALPING | SWING)") @RequestParam(required = false) String tradingStyle,
+            @Parameter(description = "포지션 방향 (LONG | SHORT)") @RequestParam(required = false) PositionSide positionSide,
+            @Parameter(description = "시장 상황 (UPTREND | DOWNTREND | SIDEWAYS)") @RequestParam(required = false) MarketCondition marketCondition
+    ) {
+        JournalStatsFilterRequest filter = new JournalStatsFilterRequest(
+                indicators, timeframes, technicalAnalyses, tradingStyle, positionSide, marketCondition);
+        return ResponseEntity.ok(ApiResponse.success(
+                tradingJournalService.getStats(userDetails.getUserId(), filter)));
+    }
 
     @GetMapping
     @Operation(summary = "매매일지 목록 조회", description = """
