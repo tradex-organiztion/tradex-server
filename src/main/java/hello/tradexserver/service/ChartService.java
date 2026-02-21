@@ -126,6 +126,14 @@ public class ChartService {
 
         ResponseEntity<String> resp = restTemplate.getForEntity(url, String.class);
         JsonNode root = objectMapper.readTree(resp.getBody());
+
+        int retCode = root.path("retCode").asInt(-1);
+        if (retCode != 0) {
+            log.warn("[Chart] Bybit API 오류: retCode={}, retMsg={}, symbol={}, interval={}",
+                    retCode, root.path("retMsg").asText(), symbol, interval);
+            return new BarsResponse(List.of(), true);
+        }
+
         JsonNode list = root.path("result").path("list");
 
         if (!list.isArray() || list.isEmpty()) return new BarsResponse(List.of(), true);
@@ -154,7 +162,7 @@ public class ChartService {
 
         String url = BITGET_API + "/api/v2/mix/market/candles"
                 + "?symbol=" + symbol
-                + "&productType=usdt-futures"
+                + "&productType=USDT-FUTURES"
                 + "&granularity=" + granularity
                 + "&startTime=" + (from * 1000L)
                 + "&endTime=" + (to * 1000L)
@@ -162,6 +170,14 @@ public class ChartService {
 
         ResponseEntity<String> resp = restTemplate.getForEntity(url, String.class);
         JsonNode root = objectMapper.readTree(resp.getBody());
+
+        String code = root.path("code").asText();
+        if (!"00000".equals(code)) {
+            log.warn("[Chart] Bitget API 오류: code={}, msg={}, symbol={}, granularity={}",
+                    code, root.path("msg").asText(), symbol, granularity);
+            return new BarsResponse(List.of(), true);
+        }
+
         JsonNode data = root.path("data");
 
         if (!data.isArray() || data.isEmpty()) return new BarsResponse(List.of(), true);
