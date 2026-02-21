@@ -72,7 +72,7 @@ public class BybitWebSocketClient implements ExchangeWebSocketClient {
         try {
             wsClient = new BybitWebSocketImpl(new URI(WSS_URL));
             wsClient.connect();
-            log.info("[Bybit] WebSocket connecting for user: {}", userId);
+            log.debug("[Bybit] WebSocket connecting for user: {}", userId);
         } catch (URISyntaxException e) {
             log.error("[Bybit] Invalid WebSocket URI", e);
         }
@@ -110,7 +110,7 @@ public class BybitWebSocketClient implements ExchangeWebSocketClient {
         );
         reconnectAttempts++;
 
-        log.info("[Bybit] 재연결 시도 {}/{} 예약 - user: {}, {}ms 후",
+        log.debug("[Bybit] 재연결 시도 {}/{} 예약 - user: {}, {}ms 후",
                 reconnectAttempts, ExchangeWebSocketClient.MAX_RECONNECT_ATTEMPTS, userId, delay);
 
         reconnectExecutor.schedule(() -> {
@@ -134,7 +134,7 @@ public class BybitWebSocketClient implements ExchangeWebSocketClient {
         try {
             String subscribeMsg = "{\"op\":\"subscribe\",\"args\":[\"position\"]}";
             wsClient.send(subscribeMsg);
-            log.info("[Bybit] Position subscription sent for user: {}", userId);
+            log.debug("[Bybit] Position subscription sent for user: {}", userId);
         } catch (Exception e) {
             log.error("[Bybit] Error subscribing to position - user: {}", userId, e);
         }
@@ -145,7 +145,7 @@ public class BybitWebSocketClient implements ExchangeWebSocketClient {
         try {
             String subscribeMsg = "{\"op\":\"subscribe\",\"args\":[\"order\"]}";
             wsClient.send(subscribeMsg);
-            log.info("[Bybit] Order subscription sent for user: {}", userId);
+            log.debug("[Bybit] Order subscription sent for user: {}", userId);
         } catch (Exception e) {
             log.error("[Bybit] Error subscribing to order - user: {}", userId, e);
         }
@@ -161,7 +161,7 @@ public class BybitWebSocketClient implements ExchangeWebSocketClient {
         public void onOpen(ServerHandshake handshakedata) {
             isConnected = true;
             reconnectAttempts = 0;
-            log.info("[Bybit] WebSocket opened for user: {}", userId);
+            log.debug("[Bybit] WebSocket opened for user: {}", userId);
             sendAuthMessage();
         }
 
@@ -201,7 +201,7 @@ public class BybitWebSocketClient implements ExchangeWebSocketClient {
             boolean success = jsonNode.has("success") && jsonNode.get("success").asBoolean();
             if (success) {
                 isAuthenticated = true;
-                log.info("[Bybit] Authentication successful - user: {}", userId);
+                log.debug("[Bybit] Authentication successful - user: {}", userId);
                 subscribePosition();
                 subscribeOrders();
 
@@ -227,7 +227,7 @@ public class BybitWebSocketClient implements ExchangeWebSocketClient {
         private void handleSubscribeResponse(JsonNode jsonNode) {
             boolean success = jsonNode.has("success") && jsonNode.get("success").asBoolean();
             if (success) {
-                log.info("[Bybit] Subscription successful - user: {}", userId);
+                log.debug("[Bybit] Subscription successful - user: {}", userId);
             } else {
                 String retMsg = jsonNode.has("ret_msg") ? jsonNode.get("ret_msg").asText() : "Unknown error";
                 log.error("[Bybit] Subscription failed - user: {} - {}", userId, retMsg);
@@ -394,7 +394,7 @@ public class BybitWebSocketClient implements ExchangeWebSocketClient {
                         apiKey, expires, sign
                 );
                 send(authMsg);
-                log.info("[Bybit] Auth message sent - user: {}", userId);
+                log.debug("[Bybit] Auth message sent - user: {}", userId);
             } catch (Exception e) {
                 log.error("[Bybit] Error sending auth message", e);
             }
