@@ -169,4 +169,25 @@ public interface PositionRepository extends JpaRepository<Position, Long> {
     List<Position> findAllOpenByApiKeyId(@Param("apiKeyId") Long apiKeyId);
 
     Optional<Position> findByIdAndUserId(Long id, Long userId);
+
+    /**
+     * 리스크 분석용: 기간·거래소 조건의 종료 포지션 + TradingJournal JOIN FETCH
+     * OneToOne이므로 카테시안 곱 없이 단일 쿼리로 처리
+     */
+    @Query("""
+        SELECT p FROM Position p
+        LEFT JOIN FETCH p.tradingJournal
+        WHERE p.user.id = :userId
+          AND p.status = 'CLOSED'
+          AND (:exchangeName IS NULL OR p.exchangeName = :exchangeName)
+          AND (cast(:startDate as LocalDateTime) IS NULL OR p.exitTime >= :startDate)
+          AND (cast(:endDate as LocalDateTime) IS NULL OR p.exitTime <= :endDate)
+        ORDER BY p.entryTime ASC
+        """)
+    List<Position> findClosedWithJournalForRiskAnalysis(
+            @Param("userId") Long userId,
+            @Param("exchangeName") ExchangeName exchangeName,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate
+    );
 }
