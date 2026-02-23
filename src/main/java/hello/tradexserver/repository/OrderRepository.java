@@ -37,6 +37,18 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     Optional<Order> findByIdAndUserId(Long id, Long userId);
 
     /**
+     * 리스크 분석용: 포지션 ID 목록에 해당하는 진입 오더 bulk 조회 (물타기 계산용)
+     * OPEN 오더만 조회하여 fillTime 순으로 정렬
+     */
+    @Query("""
+        SELECT o FROM Order o
+        WHERE o.position.id IN :positionIds
+          AND o.positionEffect = 'OPEN'
+        ORDER BY o.fillTime ASC
+        """)
+    List<Order> findOpenOrdersByPositionIds(@Param("positionIds") List<Long> positionIds);
+
+    /**
      * 오더 기반 포지션 재구성용: apiKey의 미매핑 오더 전체 조회 (fillTime 순)
      */
     @Query("""
