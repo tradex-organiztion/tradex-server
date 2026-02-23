@@ -1,13 +1,11 @@
 package hello.tradexserver.service;
 
-import hello.tradexserver.domain.RiskPattern;
-import hello.tradexserver.domain.StrategyPattern;
 import hello.tradexserver.domain.TradingJournal;
 import hello.tradexserver.dto.chat.JournalSearchRequest;
 import hello.tradexserver.dto.chat.JournalSearchResponse;
+import hello.tradexserver.dto.response.risk.RiskAnalysisResponse;
+import hello.tradexserver.dto.response.strategy.StrategyAnalysisResponse;
 import hello.tradexserver.repository.PositionRepository;
-import hello.tradexserver.repository.RiskPatternRepository;
-import hello.tradexserver.repository.StrategyPatternRepository;
 import hello.tradexserver.repository.TradingJournalRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,7 +19,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -30,9 +27,9 @@ import java.util.stream.Collectors;
 public class ChatContextService {
 
     private final PositionRepository positionRepository;
-    private final StrategyPatternRepository strategyPatternRepository;
-    private final RiskPatternRepository riskPatternRepository;
     private final TradingJournalRepository tradingJournalRepository;
+    private final StrategyAnalysisService strategyAnalysisService;
+    private final RiskAnalysisService riskAnalysisService;
 
     public SystemMessage buildSystemMessage(Long userId) {
         // 전체 통합 통계 (exchangeName = null)
@@ -40,31 +37,26 @@ public class ChatContextService {
         Object[] closedSummary = positionRepository.getClosedPositionsSummary(userId, "CLOSED", null, null);
         List<Object[]> profitRanking = positionRepository.getProfitRankingBySymbol(userId, "CLOSED", null, null);
 
-        // 전략 패턴 상위 3
-        List<StrategyPattern> strategies = strategyPatternRepository.findTop3ByUserIdOrderByWinRateDesc(userId);
+        // 전략 패턴 상위 3 (전체 기간, 전 거래소)
+        List<StrategyAnalysisResponse.StrategyItem> strategies = strategyAnalysisService
+                .analyze(userId, null, "all", null, null)
+                .getStrategies().stream()
+                .limit(3)
+                .toList();
 
-        // 리스크 패턴 (전체 통합)
-        Optional<RiskPattern> riskPatternOpt = riskPatternRepository.findByUserIdAndExchangeNameIsNull(userId);
+        // 리스크 패턴 (전체 기간, 전 거래소)
+        RiskAnalysisResponse riskAnalysis = riskAnalysisService.analyze(userId, null, "all", null, null);
 
         StringBuilder prompt = new StringBuilder();
         prompt.append("당신은 전문 트레이딩 코치입니다. 아래는 이 트레이더의 매매 데이터입니다.\n");
         prompt.append("이 데이터를 참고하여 개인화된 조언을 제공하세요.\n");
         prompt.append("매매일지에 대한 구체적인 질문이 들어오면 searchTradingJournals 함수를 호출하여 관련 매매일지를 조회하세요.\n\n");
 
-        // 매매 요약
         buildSummarySection(prompt, summaryStats);
-
-        // 롱/숏 성과
         buildClosedSummarySection(prompt, closedSummary);
-
-        // 페어별 손익 (상위 5)
         buildPairRankingSection(prompt, profitRanking);
-
-        // 전략 패턴
         buildStrategySection(prompt, strategies);
-
-        // 리스크 패턴
-        buildRiskSection(prompt, riskPatternOpt);
+        buildRiskSection(prompt, riskAnalysis);
 
         return new SystemMessage(prompt.toString());
     }
@@ -165,15 +157,15 @@ public class ChatContextService {
         prompt.append("\n");
     }
 
-    private void buildStrategySection(StringBuilder prompt, List<StrategyPattern> strategies) {
-        prompt.append("## 전략 패턴 (상위 3)\n");
+    private void buildStrategySection(StringBuilder prompt, List<StrategyAnalysisResponse.StrategyItem> strategies) {
+        prompt.append("## 전략 패턴 (승률 상위 3)\n");
         if (strategies != null && !strategies.isEmpty()) {
-            for (StrategyPattern sp : strategies) {
-                prompt.append("- ").append(sp.getTradingStyle() != null ? sp.getTradingStyle() : "미분류")
-                        .append(" / ").append(sp.getPositionSide() != null ? sp.getPositionSide() : "-")
-                        .append(" / ").append(sp.getMarketCondition() != null ? sp.getMarketCondition() : "-")
-                        .append(" → 승률 ").append(sp.getWinRate() != null ? sp.getWinRate() : "0").append("%")
-                        .append(" (").append(sp.getTotalTrades()).append("건)\n");
+            for (StrategyAnalysisResponse.StrategyItem s : strategies) {
+                prompt.append("- 지표: ").append(!s.getIndicators().isEmpty() ? s.getIndicators() : "미기록")
+                        .append(" / ").append(s.getSide() != null ? s.getSide() : "-")
+                        .append(" / ").append(s.getMarketCondition() != null ? s.getMarketCondition() : "-")
+                        .append(" → 승률 ").append(s.getWinRate() != null ? s.getWinRate() : "0").append("%")
+                        .append(" (").append(s.getTotalTrades()).append("건)\n");
             }
         } else {
             prompt.append("- 데이터 없음\n");
@@ -181,15 +173,14 @@ public class ChatContextService {
         prompt.append("\n");
     }
 
-    private void buildRiskSection(StringBuilder prompt, Optional<RiskPattern> riskPatternOpt) {
+    private void buildRiskSection(StringBuilder prompt, RiskAnalysisResponse risk) {
         prompt.append("## 리스크 패턴\n");
-        if (riskPatternOpt.isPresent()) {
-            RiskPattern rp = riskPatternOpt.get();
-            prompt.append("- 감정적 매매: ").append(rp.getEmotionalTradeCount()).append("건\n");
-            prompt.append("- 비계획 진입: ").append(rp.getUnplannedEntryCount()).append("건\n");
-            prompt.append("- 손절 위반: ").append(rp.getSlViolationCount()).append("건\n");
-            prompt.append("- 이른 익절: ").append(rp.getEarlyTpCount()).append("건\n");
-            prompt.append("- 물타기: ").append(rp.getAveragingDownCount()).append("건\n");
+        if (risk != null && risk.getTotalTrades() > 0) {
+            prompt.append("- 감정적 매매: ").append(risk.getEmotionalRisk().getEmotionalTradeCount()).append("건\n");
+            prompt.append("- 비계획 진입: ").append(risk.getEntryRisk().getUnplannedEntryCount()).append("건\n");
+            prompt.append("- 손절 위반: ").append(risk.getExitRisk().getSlViolationCount()).append("건\n");
+            prompt.append("- 이른 익절: ").append(risk.getExitRisk().getEarlyTpCount()).append("건\n");
+            prompt.append("- 물타기: ").append(risk.getPositionManagementRisk().getAveragingDownCount()).append("건\n");
         } else {
             prompt.append("- 데이터 없음\n");
         }
