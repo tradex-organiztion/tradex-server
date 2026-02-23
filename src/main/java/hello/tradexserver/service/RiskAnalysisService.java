@@ -267,6 +267,7 @@ public class RiskAnalysisService {
      * SHORT: (sl - exit) / sl * 100 → 음수
      */
     private BigDecimal calcSlDelay(Position p, BigDecimal sl) {
+        if (sl.compareTo(BigDecimal.ZERO) == 0) return BigDecimal.ZERO;
         BigDecimal exit = p.getAvgExitPrice();
         BigDecimal diff = p.getSide() == PositionSide.LONG
                 ? exit.subtract(sl)
