@@ -94,6 +94,11 @@ public class Order {
 
     private String orderLinkId;   // 사용자 지정 주문 ID
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 10)
+    @Builder.Default
+    private DataSource dataSource = DataSource.EXCHANGE;
+
     @CreatedDate
     @Column(updatable = false)
     private LocalDateTime createdAt;
@@ -147,6 +152,7 @@ public class Order {
                 .orderTime(this.orderTime)
                 .fillTime(this.fillTime)
                 .positionIdx(this.positionIdx)
+                .dataSource(this.dataSource)
                 .build();
     }
 

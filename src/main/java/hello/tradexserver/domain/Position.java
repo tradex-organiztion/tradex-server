@@ -1,5 +1,6 @@
 package hello.tradexserver.domain;
 
+import hello.tradexserver.domain.enums.DataSource;
 import hello.tradexserver.domain.enums.ExchangeName;
 import hello.tradexserver.domain.enums.MappingStatus;
 import hello.tradexserver.domain.enums.MarketCondition;
@@ -93,6 +94,11 @@ public class Position extends BaseTimeEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 10)
     private PositionStatus status;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 10)
+    @Builder.Default
+    private DataSource dataSource = DataSource.EXCHANGE;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 15)

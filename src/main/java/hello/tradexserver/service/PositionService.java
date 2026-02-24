@@ -4,12 +4,14 @@ import hello.tradexserver.domain.Position;
 import hello.tradexserver.domain.TradingJournal;
 import hello.tradexserver.domain.User;
 import java.math.BigDecimal;
+import hello.tradexserver.domain.enums.DataSource;
 import hello.tradexserver.domain.enums.PositionStatus;
 import hello.tradexserver.dto.request.PositionRequest;
 import hello.tradexserver.dto.response.PositionResponse;
 import hello.tradexserver.exception.AuthException;
 import hello.tradexserver.exception.BusinessException;
 import hello.tradexserver.exception.ErrorCode;
+import hello.tradexserver.repository.ExchangeApiKeyRepository;
 import hello.tradexserver.repository.OrderRepository;
 import hello.tradexserver.repository.PositionRepository;
 import hello.tradexserver.repository.TradingJournalRepository;
@@ -29,6 +31,7 @@ public class PositionService {
     private final OrderRepository orderRepository;
     private final TradingJournalRepository tradingJournalRepository;
     private final UserRepository userRepository;
+    private final ExchangeApiKeyRepository exchangeApiKeyRepository;
 
     /**
      * 포지션 수동 생성 → TradingJournal 자동 생성
@@ -49,6 +52,7 @@ public class PositionService {
                 .stopLossPrice(request.getStopLossPrice())
                 .entryTime(request.getEntryTime())
                 .status(PositionStatus.OPEN)
+                .dataSource(DataSource.MANUAL)
                 .build();
 
         positionRepository.save(position);
@@ -72,6 +76,10 @@ public class PositionService {
         Position position = positionRepository.findByIdAndUserId(positionId, userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POSITION_NOT_FOUND));
 
+        if (position.getDataSource() == DataSource.EXCHANGE) {
+            throw new BusinessException(ErrorCode.EXCHANGE_POSITION_IMMUTABLE);
+        }
+
         position.update(
                 request.getAvgEntryPrice(), request.getAvgExitPrice(),
                 request.getCurrentSize(), request.getLeverage(),
@@ -91,6 +99,10 @@ public class PositionService {
     public void delete(Long userId, Long positionId) {
         Position position = positionRepository.findByIdAndUserId(positionId, userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POSITION_NOT_FOUND));
+
+        if (position.getDataSource() == DataSource.EXCHANGE) {
+            throw new BusinessException(ErrorCode.EXCHANGE_POSITION_IMMUTABLE);
+        }
 
         positionRepository.delete(position);
         log.info("[PositionService] 포지션 삭제 - userId: {}, positionId: {}", userId, positionId);

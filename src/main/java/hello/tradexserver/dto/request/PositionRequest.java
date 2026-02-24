@@ -16,6 +16,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class PositionRequest {
 
+    @NotNull(message = "거래소는 필수입니다")
     private ExchangeName exchangeName;
 
     @NotBlank(message = "종목은 필수입니다")

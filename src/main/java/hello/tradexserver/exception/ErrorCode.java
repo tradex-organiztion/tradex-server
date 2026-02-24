@@ -38,10 +38,12 @@ public enum ErrorCode {
     // Position
     POSITION_NOT_FOUND(HttpStatus.NOT_FOUND, "POS001", "포지션을 찾을 수 없습니다"),
     POSITION_ACCESS_DENIED(HttpStatus.FORBIDDEN, "POS002", "해당 포지션에 접근 권한이 없습니다"),
+    EXCHANGE_POSITION_IMMUTABLE(HttpStatus.FORBIDDEN, "POS003", "거래소 포지션은 수정하거나 삭제할 수 없습니다"),
 
     // Order
     ORDER_NOT_FOUND(HttpStatus.NOT_FOUND, "ORD001", "오더를 찾을 수 없습니다"),
     ORDER_ACCESS_DENIED(HttpStatus.FORBIDDEN, "ORD002", "해당 오더에 접근 권한이 없습니다"),
+    EXCHANGE_ORDER_IMMUTABLE(HttpStatus.FORBIDDEN, "ORD003", "거래소 오더는 수정하거나 삭제할 수 없습니다"),
 
     // TradingJournal
     JOURNAL_NOT_FOUND(HttpStatus.NOT_FOUND, "JRN001", "매매일지를 찾을 수 없습니다"),
