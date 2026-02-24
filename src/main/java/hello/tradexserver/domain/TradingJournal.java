@@ -31,17 +31,7 @@ public class TradingJournal extends BaseTimeEntity {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Column(precision = 20, scale = 8)
-    private BigDecimal plannedTargetPrice;
-
-    @Column(precision = 20, scale = 8)
-    private BigDecimal plannedStopLoss;
-
-    @Column(columnDefinition = "TEXT")
-    private String entryScenario;
-
-    @Column(columnDefinition = "TEXT")
-    private String exitReview;
+    // ============ 사전 시나리오 ============
 
     @ElementCollection
     @CollectionTable(name = "journal_indicators", joinColumns = @JoinColumn(name = "journal_id"))
@@ -61,19 +51,45 @@ public class TradingJournal extends BaseTimeEntity {
     @Builder.Default
     private List<String> technicalAnalyses = new ArrayList<>();
 
-    //@Column(columnDefinition = "vector(1536)")
-    //private PGvector originalEmbedding;
+    @Column(precision = 20, scale = 8)
+    private BigDecimal targetPrice;
+
+    @Column(precision = 20, scale = 8)
+    private BigDecimal stopLoss;
+
+    @Column(columnDefinition = "TEXT")
+    private String entryReason;
+
+    @Column(columnDefinition = "TEXT")
+    private String targetScenario;
+
+    // ============ 매매 후 복기 ============
+
+    @Column(columnDefinition = "TEXT")
+    private String chartScreenshotUrl;
+
+    @Column(columnDefinition = "TEXT")
+    private String reviewContent;
+
+    // ============ 매매원칙 준수 체크 ============
+
+    @OneToMany(mappedBy = "tradingJournal", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<TradingPrincipleCheck> principleChecks = new ArrayList<>();
 
     @OneToOne(mappedBy = "tradingJournal", fetch = FetchType.LAZY)
     private RefinedJournal refinedJournal;
 
-    public void update(BigDecimal plannedTargetPrice, BigDecimal plannedStopLoss,
-                       String entryScenario, String exitReview,
+    public void update(BigDecimal targetPrice, BigDecimal stopLoss,
+                       String entryReason, String targetScenario,
+                       String chartScreenshotUrl, String reviewContent,
                        List<String> indicators, List<String> timeframes, List<String> technicalAnalyses) {
-        if (plannedTargetPrice != null) this.plannedTargetPrice = plannedTargetPrice;
-        if (plannedStopLoss != null) this.plannedStopLoss = plannedStopLoss;
-        if (entryScenario != null) this.entryScenario = entryScenario;
-        if (exitReview != null) this.exitReview = exitReview;
+        if (targetPrice != null) this.targetPrice = targetPrice;
+        if (stopLoss != null) this.stopLoss = stopLoss;
+        if (entryReason != null) this.entryReason = entryReason;
+        if (targetScenario != null) this.targetScenario = targetScenario;
+        if (chartScreenshotUrl != null) this.chartScreenshotUrl = chartScreenshotUrl;
+        if (reviewContent != null) this.reviewContent = reviewContent;
         if (indicators != null) this.indicators = indicators;
         if (timeframes != null) this.timeframes = timeframes;
         if (technicalAnalyses != null) this.technicalAnalyses = technicalAnalyses;

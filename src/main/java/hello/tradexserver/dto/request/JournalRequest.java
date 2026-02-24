@@ -13,12 +13,21 @@ import java.util.List;
 @AllArgsConstructor
 public class JournalRequest {
 
-    private BigDecimal plannedTargetPrice;
-    private BigDecimal plannedStopLoss;
-    private String entryScenario;
-    private String exitReview;
+    // 사전 시나리오
     private List<String> indicators;
     private List<String> timeframes;
     private List<String> technicalAnalyses;
+    private BigDecimal targetPrice;
+    private BigDecimal stopLoss;
+    private String entryReason;
+    private String targetScenario;
+
+    // 매매 후 복기
+    private String chartScreenshotUrl;
+    private String reviewContent;
+
+    // 매매원칙 준수 체크
+    private List<PrincipleCheckRequest> principleChecks;
+
     private MarketCondition marketCondition;
 }

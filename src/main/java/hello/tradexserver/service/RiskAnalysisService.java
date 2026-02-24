@@ -82,7 +82,7 @@ public class RiskAnalysisService {
 
         for (Position p : positions) {
             TradingJournal journal = p.getTradingJournal();
-            boolean isUnplanned = journal == null || !StringUtils.hasText(journal.getEntryScenario());
+            boolean isUnplanned = journal == null || !StringUtils.hasText(journal.getEntryReason());
 
             if (isUnplanned) {
                 unplannedCount++;
@@ -136,7 +136,7 @@ public class RiskAnalysisService {
                         && prev.getRealizedPnl().compareTo(BigDecimal.ZERO) < 0;
                 boolean withinWindow = minutesBetween >= 0 && minutesBetween <= REENTRY_WINDOW_MINUTES;
                 boolean noScenario = curr.getTradingJournal() == null
-                        || !StringUtils.hasText(curr.getTradingJournal().getEntryScenario());
+                        || !StringUtils.hasText(curr.getTradingJournal().getEntryReason());
 
                 if (prevLoss && withinWindow && noScenario) {
                     count++;
@@ -231,18 +231,18 @@ public class RiskAnalysisService {
                 .build();
     }
 
-    /** SL 우선순위: 매매일지 plannedStopLoss > Position.stopLossPrice */
+    /** SL 우선순위: 매매일지 stopLoss > Position.stopLossPrice */
     private BigDecimal resolveStopLoss(TradingJournal journal, Position p) {
-        if (journal != null && journal.getPlannedStopLoss() != null) {
-            return journal.getPlannedStopLoss();
+        if (journal != null && journal.getStopLoss() != null) {
+            return journal.getStopLoss();
         }
         return p.getStopLossPrice();
     }
 
-    /** TP 우선순위: 매매일지 plannedTargetPrice > Position.targetPrice */
+    /** TP 우선순위: 매매일지 targetPrice > Position.targetPrice */
     private BigDecimal resolveTakeProfit(TradingJournal journal, Position p) {
-        if (journal != null && journal.getPlannedTargetPrice() != null) {
-            return journal.getPlannedTargetPrice();
+        if (journal != null && journal.getTargetPrice() != null) {
+            return journal.getTargetPrice();
         }
         return p.getTargetPrice();
     }
