@@ -20,7 +20,7 @@ import static hello.tradexserver.common.util.BigDecimalUtil.*;
 public class DailyStatsService {
 
     private final DailyStatsRepository dailyStatsRepository;
-    private final ExchangeAssetService exchangeAssetService;
+    private final DailyStatsAggregationService aggregationService;
 
     public HomeScreenResponse getHomeScreenData(Long userId) {
         return HomeScreenResponse.of(
@@ -33,9 +33,10 @@ public class DailyStatsService {
 
     /**
      * 1. 총 자산 + 전일 대비 증감률(%)
+     * 오늘 totalAsset이 없으면 외부 API 호출 후 DB에 저장 (lazy snapshot).
      */
     private AssetData getAsset(Long userId) {
-        BigDecimal currentAsset = exchangeAssetService.getTotalAsset(userId);
+        BigDecimal currentAsset = aggregationService.upsertTodayTotalAsset(userId);
 
         LocalDate yesterday = LocalDate.now().minusDays(1);
         BigDecimal yesterdayAsset = dailyStatsRepository
