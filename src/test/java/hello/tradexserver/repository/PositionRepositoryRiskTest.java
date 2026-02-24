@@ -17,6 +17,7 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -43,7 +44,7 @@ class PositionRepositoryRiskTest {
     private PositionRepository positionRepository;
 
     private User user;
-    private final LocalDateTime NOW = LocalDateTime.now();
+    private final LocalDateTime NOW = LocalDateTime.now().truncatedTo(ChronoUnit.MICROS);
 
     private Position p1, p2, p3, p4, p5;
 

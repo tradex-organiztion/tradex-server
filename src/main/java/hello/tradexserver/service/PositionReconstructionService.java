@@ -265,6 +265,8 @@ public class PositionReconstructionService {
 
         eventPublisher.publishEvent(PositionCloseEvent.builder()
                 .positionId(position.getId())
+                .userId(position.getUser().getId())
+                .realizedPnl(position.getRealizedPnl())
                 .build());
     }
 }
