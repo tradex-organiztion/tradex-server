@@ -45,4 +45,14 @@ public class DailyStats extends BaseTimeEntity{
     public BigDecimal getSafeTotalAsset() {
         return totalAsset != null ? totalAsset : BigDecimal.ZERO;
     }
+
+    public void accumulate(BigDecimal pnl) {
+        this.realizedPnl = getSafeRealizedPnl().add(pnl);
+        if (pnl.compareTo(BigDecimal.ZERO) > 0) this.winCount++;
+        else if (pnl.compareTo(BigDecimal.ZERO) < 0) this.lossCount++;
+    }
+
+    public void updateTotalAsset(BigDecimal asset) {
+        this.totalAsset = asset;
+    }
 }

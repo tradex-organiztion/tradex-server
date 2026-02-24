@@ -83,4 +83,8 @@ public interface DailyStatsRepository extends JpaRepository<DailyStats, Long> {
             @Param("userId") Long userId,
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate);
+
+    // 자정 배치용: 최근 N일 이내 접속한 활성 유저 ID 목록
+    @Query("SELECT DISTINCT d.user.id FROM DailyStats d WHERE d.statDate >= :since")
+    List<Long> findActiveUserIds(@Param("since") LocalDate since);
 }
