@@ -8,7 +8,10 @@ import hello.tradexserver.dto.response.NotificationResponse;
 import hello.tradexserver.exception.BusinessException;
 import hello.tradexserver.exception.ErrorCode;
 import hello.tradexserver.repository.NotificationRepository;
+import hello.tradexserver.repository.PositionRepository;
+import hello.tradexserver.repository.UserRepository;
 import org.junit.jupiter.api.*;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -32,6 +35,15 @@ class NotificationServiceTest {
 
     @Mock
     private NotificationRepository notificationRepository;
+
+    @Mock
+    private UserRepository userRepository;
+
+    @Mock
+    private PositionRepository positionRepository;
+
+    @Mock
+    private SimpMessagingTemplate messagingTemplate;
 
     private User user;
     private User otherUser;

@@ -8,10 +8,11 @@ import java.math.BigDecimal;
 
 @Getter
 @Builder
-public class PositionCloseEvent {
+public class PositionOpenEvent {
     private final Long positionId;
     private final Long userId;
     private final String symbol;
     private final PositionSide side;
-    private final BigDecimal realizedPnl;
+    private final BigDecimal avgEntryPrice;
+    private final Integer leverage;
 }
