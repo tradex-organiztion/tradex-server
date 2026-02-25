@@ -57,7 +57,15 @@ public enum ErrorCode {
     CHART_LAYOUT_ACCESS_DENIED(HttpStatus.FORBIDDEN, "CHART002", "해당 차트 레이아웃에 접근 권한이 없습니다"),
 
     // Chat
-    SESSION_NOT_FOUND(HttpStatus.NOT_FOUND, "CHAT001", "채팅 세션을 찾을 수 없습니다");
+    SESSION_NOT_FOUND(HttpStatus.NOT_FOUND, "CHAT001", "채팅 세션을 찾을 수 없습니다"),
+
+    // Subscription
+    SUBSCRIPTION_NOT_FOUND(HttpStatus.NOT_FOUND, "SUB001", "구독 정보를 찾을 수 없습니다"),
+    BILLING_KEY_REQUIRED(HttpStatus.BAD_REQUEST, "SUB002", "결제 수단 등록이 필요합니다"),
+    ALREADY_SAME_PLAN(HttpStatus.BAD_REQUEST, "SUB003", "이미 동일한 플랜을 구독 중입니다"),
+    SUBSCRIPTION_NOT_ACTIVE(HttpStatus.BAD_REQUEST, "SUB004", "활성 구독이 없습니다"),
+    PAYMENT_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "SUB005", "결제에 실패했습니다"),
+    FREE_PLAN_NO_BILLING(HttpStatus.BAD_REQUEST, "SUB006", "무료 플랜은 결제 수단이 필요하지 않습니다");
 
     private final HttpStatus status;
     private final String code;
