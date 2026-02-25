@@ -58,7 +58,7 @@ public class SubscriptionController {
     }
 
     @Operation(summary = "빌링키 발급 및 구독 시작",
-            description = "프론트에서 Toss SDK 카드 인증 후 authKey+customerKey를 받아 빌링키를 발급하고 구독을 시작합니다")
+            description = "프론트에서 Toss SDK 카드 인증 후 authKey+customerKey를 받아 빌링키를 발급하고 구독을 시작합니다. SubscriptionPlan: FREE, PRO, PREMIUM")
     @PostMapping("/billing-key")
     public ResponseEntity<ApiResponse<SubscriptionResponse>> issueBillingKey(
             @AuthenticationPrincipal CustomUserDetails userDetails,

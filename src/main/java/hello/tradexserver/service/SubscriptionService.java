@@ -72,12 +72,13 @@ public class SubscriptionService {
 
     // 빌링키 발급 + 플랜 구독 시작 (최초 카드 등록)
     public SubscriptionResponse issueBillingKeyAndSubscribe(Long userId, BillingKeyIssueRequest request) {
-        User user = findUser(userId);
         SubscriptionPlan plan = request.getPlan();
 
         if (plan == SubscriptionPlan.FREE) {
             throw new BusinessException(ErrorCode.FREE_PLAN_NO_BILLING);
         }
+
+        User user = findUser(userId);
 
         // 토스 API로 빌링키 발급
         TossBillingKeyResponse billingKeyResponse = tossPaymentService.issueBillingKey(

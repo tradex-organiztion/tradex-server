@@ -56,7 +56,7 @@ public class TossPaymentService {
     public TossPaymentResponse chargeByBillingKey(String billingKey, String customerKey,
                                                    int amount, String orderName) {
         String orderId = "tradex_" + UUID.randomUUID().toString().replace("-", "").substring(0, 20);
-
+        log.info("billingKey: {}", billingKey);
         return webClient.post()
                 .uri("/v1/billing/" + billingKey)
                 .bodyValue(Map.of(
