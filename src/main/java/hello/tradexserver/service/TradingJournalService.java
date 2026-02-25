@@ -123,6 +123,7 @@ public class TradingJournalService {
         if (request.getPrincipleChecks() != null) {
             tradingPrincipleCheckRepository.deleteByTradingJournalId(journalId);
             List<TradingPrincipleCheck> newChecks = request.getPrincipleChecks().stream()
+                    .filter(pc -> pc.getTradingPrincipleId() != null && pc.getTradingPrincipleId() > 0)
                     .map(pc -> TradingPrincipleCheck.builder()
                             .tradingJournal(journal)
                             .tradingPrinciple(tradingPrincipleRepository.getReferenceById(pc.getTradingPrincipleId()))
