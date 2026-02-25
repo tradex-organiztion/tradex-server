@@ -79,9 +79,9 @@ class RiskAnalysisServiceTest {
 
     private TradingJournal journal(String scenario, BigDecimal sl, BigDecimal tp) {
         TradingJournal j = mock(TradingJournal.class);
-        when(j.getEntryScenario()).thenReturn(scenario);
-        when(j.getPlannedStopLoss()).thenReturn(sl);
-        when(j.getPlannedTargetPrice()).thenReturn(tp);
+        when(j.getEntryReason()).thenReturn(scenario);
+        when(j.getStopLoss()).thenReturn(sl);
+        when(j.getTargetPrice()).thenReturn(tp);
         return j;
     }
 

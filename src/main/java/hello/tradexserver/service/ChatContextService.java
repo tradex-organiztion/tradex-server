@@ -84,8 +84,8 @@ public class ChatContextService {
                         tj.getPosition().getSide() != null ? tj.getPosition().getSide().name() : null,
                         tj.getPosition().getRealizedPnl() != null ? tj.getPosition().getRealizedPnl().toPlainString() : "0",
                         tj.getPosition().getExitTime() != null ? tj.getPosition().getExitTime().toString() : null,
-                        tj.getEntryScenario(),
-                        tj.getExitReview(),
+                        tj.getEntryReason(),
+                        tj.getReviewContent(),
                         tj.getRefinedJournal() != null ? tj.getRefinedJournal().getRefinedText() : null
                 ))
                 .collect(Collectors.toList());

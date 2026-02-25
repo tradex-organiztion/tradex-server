@@ -20,9 +20,11 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 @Slf4j
 @RestController
@@ -113,6 +115,16 @@ public class TradingJournalController {
         JournalDetailResponse response = tradingJournalService.update(
                 userDetails.getUserId(), journalId, request);
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @PostMapping(value = "/screenshot", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "차트 스크린샷 업로드", description = "차트 이미지를 업로드하고 URL을 반환합니다.")
+    public ResponseEntity<ApiResponse<String>> uploadScreenshot(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @RequestPart("file") MultipartFile file
+    ) {
+        String url = tradingJournalService.uploadScreenshot(userDetails.getUserId(), file);
+        return ResponseEntity.ok(ApiResponse.success("업로드 완료", url));
     }
 
     @DeleteMapping("/{journalId}")

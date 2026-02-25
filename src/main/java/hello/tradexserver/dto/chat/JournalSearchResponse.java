@@ -9,8 +9,8 @@ public record JournalSearchResponse(List<JournalSummary> journals) {
             String side,
             String realizedPnl,
             String exitTime,
-            String entryScenario,
-            String exitReview,
+            String entryReason,
+            String reviewContent,
             String refinedText
     ) {}
 }

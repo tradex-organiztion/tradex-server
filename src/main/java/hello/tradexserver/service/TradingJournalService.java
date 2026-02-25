@@ -1,6 +1,8 @@
 package hello.tradexserver.service;
 
 import hello.tradexserver.domain.TradingJournal;
+import hello.tradexserver.domain.TradingPrinciple;
+import hello.tradexserver.domain.TradingPrincipleCheck;
 import hello.tradexserver.domain.enums.PositionSide;
 import hello.tradexserver.domain.enums.PositionStatus;
 import hello.tradexserver.dto.request.JournalRequest;
@@ -10,12 +12,16 @@ import hello.tradexserver.dto.response.JournalStatsOptionsResponse;
 import hello.tradexserver.dto.response.JournalStatsResponse;
 import hello.tradexserver.dto.response.JournalSummaryResponse;
 import hello.tradexserver.dto.response.OrderResponse;
+import hello.tradexserver.dto.response.PrincipleCheckResponse;
 import hello.tradexserver.exception.BusinessException;
 import hello.tradexserver.exception.ErrorCode;
 import hello.tradexserver.repository.OrderRepository;
 import hello.tradexserver.repository.TradingJournalRepository;
+import hello.tradexserver.repository.TradingPrincipleCheckRepository;
+import hello.tradexserver.repository.TradingPrincipleRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -29,6 +35,7 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -39,6 +46,8 @@ public class TradingJournalService {
 
     private final TradingJournalRepository tradingJournalRepository;
     private final OrderRepository orderRepository;
+    private final TradingPrincipleRepository tradingPrincipleRepository;
+    private final TradingPrincipleCheckRepository tradingPrincipleCheckRepository;
 
     /**
      * 매매일지 목록 조회 (포지션 요약 포함, 필터링 + 페이지네이션)
@@ -75,7 +84,8 @@ public class TradingJournalService {
     }
 
     /**
-     * 매매일지 상세 조회 (포지션 + 오더 목록 + 저널 내용)
+     * 매매일지 상세 조회 (포지션 + 오더 목록 + 저널 내용 + 매매원칙 체크)
+     * 사용자의 전체 원칙 목록을 기준으로, 체크 기록이 없으면 isChecked=false로 반환
      */
     @Transactional(readOnly = true)
     public JournalDetailResponse getDetail(Long userId, Long journalId) {
@@ -87,24 +97,39 @@ public class TradingJournalService {
                 .map(OrderResponse::from)
                 .collect(Collectors.toList());
 
-        return JournalDetailResponse.from(journal, orders);
+        List<PrincipleCheckResponse> principleChecks = buildPrincipleChecks(userId, journalId);
+
+        return JournalDetailResponse.from(journal, orders, principleChecks);
     }
 
     /**
-     * 매매일지 내용 수정 (저널 텍스트 필드만)
+     * 매매일지 내용 수정 + 매매원칙 체크 upsert
      */
     public JournalDetailResponse update(Long userId, Long journalId, JournalRequest request) {
         TradingJournal journal = tradingJournalRepository.findByIdAndUserId(journalId, userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.JOURNAL_NOT_FOUND));
 
         journal.update(
-                request.getPlannedTargetPrice(), request.getPlannedStopLoss(),
-                request.getEntryScenario(), request.getExitReview(),
+                request.getTargetPrice(), request.getStopLoss(),
+                request.getEntryReason(), request.getTargetScenario(),
+                request.getChartScreenshotUrl(), request.getReviewContent(),
                 request.getIndicators(), request.getTimeframes(), request.getTechnicalAnalyses()
         );
 
         if (request.getMarketCondition() != null) {
             journal.getPosition().updateMarketCondition(request.getMarketCondition());
+        }
+
+        if (request.getPrincipleChecks() != null) {
+            tradingPrincipleCheckRepository.deleteByTradingJournalId(journalId);
+            List<TradingPrincipleCheck> newChecks = request.getPrincipleChecks().stream()
+                    .map(pc -> TradingPrincipleCheck.builder()
+                            .tradingJournal(journal)
+                            .tradingPrinciple(tradingPrincipleRepository.getReferenceById(pc.getTradingPrincipleId()))
+                            .isChecked(pc.isChecked())
+                            .build())
+                    .collect(Collectors.toList());
+            tradingPrincipleCheckRepository.saveAll(newChecks);
         }
 
         tradingJournalRepository.save(journal);
@@ -115,7 +140,9 @@ public class TradingJournalService {
                 .map(OrderResponse::from)
                 .collect(Collectors.toList());
 
-        return JournalDetailResponse.from(journal, orders);
+        List<PrincipleCheckResponse> principleChecks = buildPrincipleChecks(userId, journalId);
+
+        return JournalDetailResponse.from(journal, orders, principleChecks);
     }
 
     /**
@@ -170,5 +197,32 @@ public class TradingJournalService {
 
         tradingJournalRepository.delete(journal);
         log.info("[JournalService] 매매일지 삭제 - userId: {}, journalId: {}", userId, journalId);
+    }
+
+    /**
+     * 차트 스크린샷 업로드 후 URL 반환
+     * TODO: S3 연동 구현 필요
+     */
+    public String uploadScreenshot(Long userId, MultipartFile file) {
+        throw new UnsupportedOperationException("S3 연동이 구현되지 않았습니다");
+    }
+
+    /**
+     * 사용자의 전체 매매원칙 목록 기준으로 체크 여부를 병합하여 반환
+     * 체크 기록이 없는 원칙은 isChecked=false로 초기화
+     */
+    private List<PrincipleCheckResponse> buildPrincipleChecks(Long userId, Long journalId) {
+        List<TradingPrinciple> principles = tradingPrincipleRepository.findByUserIdOrderByCreatedAtDesc(userId);
+        Map<Long, Boolean> checkMap = tradingPrincipleCheckRepository.findByTradingJournalId(journalId)
+                .stream()
+                .collect(Collectors.toMap(
+                        c -> c.getTradingPrinciple().getId(),
+                        TradingPrincipleCheck::isChecked
+                ));
+
+        return principles.stream()
+                .map(p -> PrincipleCheckResponse.of(p.getId(), p.getContent(),
+                        checkMap.getOrDefault(p.getId(), false)))
+                .collect(Collectors.toList());
     }
 }

@@ -66,9 +66,9 @@ class PositionRepositoryRiskTest {
                 .status(PositionStatus.CLOSED).build());
         em.persist(TradingJournal.builder()
                 .user(user).position(p1)
-                .entryScenario("계획된 매매 시나리오")
-                .plannedStopLoss(new BigDecimal("39000"))
-                .plannedTargetPrice(new BigDecimal("42000"))
+                .entryReason("계획된 매매 시나리오")
+                .stopLoss(new BigDecimal("39000"))
+                .targetPrice(new BigDecimal("42000"))
                 .indicators(new ArrayList<>(List.of("RSI")))
                 .build());
 
@@ -98,7 +98,7 @@ class PositionRepositoryRiskTest {
                 .status(PositionStatus.CLOSED).build());
         em.persist(TradingJournal.builder()
                 .user(user).position(p3)
-                .entryScenario("BINANCE 매매 계획")
+                .entryReason("BINANCE 매매 계획")
                 .indicators(new ArrayList<>(List.of("MACD")))
                 .build());
 
@@ -122,7 +122,7 @@ class PositionRepositoryRiskTest {
                 .status(PositionStatus.CLOSED).build());
         em.persist(TradingJournal.builder()
                 .user(user).position(p5)
-                .entryScenario("오래된 포지션")
+                .entryReason("오래된 포지션")
                 .indicators(new ArrayList<>())
                 .build());
 
@@ -284,8 +284,8 @@ class PositionRepositoryRiskTest {
             result.forEach(p -> {
                 TradingJournal journal = p.getTradingJournal();
                 assertThat(journal).isNotNull(); // 모든 포지션에 journal 존재
-                // entryScenario 접근 시 추가 쿼리 없이 바로 조회
-                journal.getEntryScenario(); // LazyInitializationException 발생하지 않아야 함
+                // entryReason 접근 시 추가 쿼리 없이 바로 조회
+                journal.getEntryReason(); // LazyInitializationException 발생하지 않아야 함
             });
         }
 
@@ -295,15 +295,15 @@ class PositionRepositoryRiskTest {
             List<Position> result = positionRepository
                     .findClosedWithJournalForRiskAnalysis(user.getId(), ExchangeName.BYBIT, null, null);
 
-            // P1: scenario="계획된 매매 시나리오", plannedStopLoss=39000, plannedTargetPrice=42000
+            // P1: entryReason="계획된 매매 시나리오", stopLoss=39000, targetPrice=42000
             Position btcPosition = result.stream()
                     .filter(p -> "BTCUSDT".equals(p.getSymbol()))
                     .findFirst().orElseThrow();
 
             TradingJournal journal = btcPosition.getTradingJournal();
-            assertThat(journal.getEntryScenario()).isEqualTo("계획된 매매 시나리오");
-            assertThat(journal.getPlannedStopLoss()).isEqualByComparingTo(new BigDecimal("39000"));
-            assertThat(journal.getPlannedTargetPrice()).isEqualByComparingTo(new BigDecimal("42000"));
+            assertThat(journal.getEntryReason()).isEqualTo("계획된 매매 시나리오");
+            assertThat(journal.getStopLoss()).isEqualByComparingTo(new BigDecimal("39000"));
+            assertThat(journal.getTargetPrice()).isEqualByComparingTo(new BigDecimal("42000"));
         }
 
         @Test

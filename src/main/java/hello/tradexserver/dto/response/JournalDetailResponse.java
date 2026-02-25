@@ -13,7 +13,6 @@ import lombok.Getter;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Getter
 @Builder
@@ -22,14 +21,21 @@ public class JournalDetailResponse {
     private Long journalId;
     private Long positionId;
 
-    // 저널 내용
-    private BigDecimal plannedTargetPrice;
-    private BigDecimal plannedStopLoss;
-    private String entryScenario;
-    private String exitReview;
+    // 사전 시나리오
     private List<String> indicators;
     private List<String> timeframes;
     private List<String> technicalAnalyses;
+    private BigDecimal targetPrice;
+    private BigDecimal stopLoss;
+    private String entryReason;
+    private String targetScenario;
+
+    // 매매 후 복기
+    private String chartScreenshotUrl;
+    private String reviewContent;
+
+    // 매매원칙 준수 체크
+    private List<PrincipleCheckResponse> principleChecks;
 
     // 포지션
     private ExchangeName exchangeName;
@@ -45,8 +51,8 @@ public class JournalDetailResponse {
     private BigDecimal realizedPnl;
     private BigDecimal openFee;
     private BigDecimal closedFee;
-    private BigDecimal targetPrice;
-    private BigDecimal stopLossPrice;
+    private BigDecimal exchangeTargetPrice;
+    private BigDecimal exchangeStopLossPrice;
     private BigDecimal roi;
 
     // 오더 목록
@@ -54,18 +60,22 @@ public class JournalDetailResponse {
 
     private LocalDateTime createdAt;
 
-    public static JournalDetailResponse from(TradingJournal journal, List<OrderResponse> orders) {
+    public static JournalDetailResponse from(TradingJournal journal, List<OrderResponse> orders,
+                                             List<PrincipleCheckResponse> principleChecks) {
         Position position = journal.getPosition();
         return JournalDetailResponse.builder()
                 .journalId(journal.getId())
                 .positionId(position.getId())
-                .plannedTargetPrice(journal.getPlannedTargetPrice())
-                .plannedStopLoss(journal.getPlannedStopLoss())
-                .entryScenario(journal.getEntryScenario())
-                .exitReview(journal.getExitReview())
                 .indicators(journal.getIndicators())
                 .timeframes(journal.getTimeframes())
                 .technicalAnalyses(journal.getTechnicalAnalyses())
+                .targetPrice(journal.getTargetPrice())
+                .stopLoss(journal.getStopLoss())
+                .entryReason(journal.getEntryReason())
+                .targetScenario(journal.getTargetScenario())
+                .chartScreenshotUrl(journal.getChartScreenshotUrl())
+                .reviewContent(journal.getReviewContent())
+                .principleChecks(principleChecks)
                 .exchangeName(position.getExchangeName())
                 .symbol(position.getSymbol())
                 .side(position.getSide())
@@ -79,8 +89,8 @@ public class JournalDetailResponse {
                 .realizedPnl(position.getRealizedPnl())
                 .openFee(position.getOpenFee())
                 .closedFee(position.getClosedFee())
-                .targetPrice(position.getTargetPrice())
-                .stopLossPrice(position.getStopLossPrice())
+                .exchangeTargetPrice(position.getTargetPrice())
+                .exchangeStopLossPrice(position.getStopLossPrice())
                 .roi(position.getRoi())
                 .orders(orders)
                 .createdAt(journal.getCreatedAt())

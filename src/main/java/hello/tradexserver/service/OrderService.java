@@ -3,6 +3,7 @@ package hello.tradexserver.service;
 import hello.tradexserver.domain.Order;
 import hello.tradexserver.domain.Position;
 import hello.tradexserver.domain.User;
+import hello.tradexserver.domain.enums.DataSource;
 import hello.tradexserver.domain.enums.OrderStatus;
 import hello.tradexserver.dto.request.OrderRequest;
 import hello.tradexserver.dto.response.OrderResponse;
@@ -38,6 +39,10 @@ public class OrderService {
         Position position = positionRepository.findByIdAndUserId(positionId, userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POSITION_NOT_FOUND));
 
+        if (position.getDataSource() == DataSource.EXCHANGE) {
+            throw new BusinessException(ErrorCode.EXCHANGE_POSITION_IMMUTABLE);
+        }
+
         Order order = Order.builder()
                 .user(user)
                 .position(position)
@@ -54,6 +59,7 @@ public class OrderService {
                 .status(OrderStatus.FILLED)
                 .orderTime(request.getOrderTime())
                 .fillTime(request.getFillTime())
+                .dataSource(DataSource.MANUAL)
                 .build();
 
         orderRepository.save(order);
@@ -73,6 +79,10 @@ public class OrderService {
     public OrderResponse update(Long userId, Long orderId, OrderRequest request) {
         Order order = orderRepository.findByIdAndUserId(orderId, userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_NOT_FOUND));
+
+        if (order.getDataSource() == DataSource.EXCHANGE) {
+            throw new BusinessException(ErrorCode.EXCHANGE_ORDER_IMMUTABLE);
+        }
 
         order.update(
                 request.getFilledQuantity(), request.getFilledPrice(),
@@ -97,8 +107,16 @@ public class OrderService {
         Order order = orderRepository.findByIdAndUserId(orderId, userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_NOT_FOUND));
 
+        if (order.getDataSource() == DataSource.EXCHANGE) {
+            throw new BusinessException(ErrorCode.EXCHANGE_ORDER_IMMUTABLE);
+        }
+
         Position targetPosition = positionRepository.findByIdAndUserId(targetPositionId, userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POSITION_NOT_FOUND));
+
+        if (targetPosition.getDataSource() == DataSource.EXCHANGE) {
+            throw new BusinessException(ErrorCode.EXCHANGE_POSITION_IMMUTABLE);
+        }
 
         Long oldPositionId = order.getPosition() != null ? order.getPosition().getId() : null;
         boolean oldWasClosed = order.getPosition() != null && order.getPosition().isClosed();
@@ -125,6 +143,10 @@ public class OrderService {
     public void delete(Long userId, Long orderId) {
         Order order = orderRepository.findByIdAndUserId(orderId, userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_NOT_FOUND));
+
+        if (order.getDataSource() == DataSource.EXCHANGE) {
+            throw new BusinessException(ErrorCode.EXCHANGE_ORDER_IMMUTABLE);
+        }
 
         Long positionId = order.getPosition() != null ? order.getPosition().getId() : null;
         boolean wasClosed = order.getPosition() != null && order.getPosition().isClosed();
