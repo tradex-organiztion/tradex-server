@@ -8,6 +8,7 @@ import hello.tradexserver.domain.enums.PositionEffect;
 import hello.tradexserver.domain.enums.PositionSide;
 import hello.tradexserver.domain.enums.PositionStatus;
 import hello.tradexserver.event.PositionCloseEvent;
+import hello.tradexserver.event.PositionOpenEvent;
 import hello.tradexserver.repository.OrderRepository;
 import hello.tradexserver.repository.PositionRepository;
 import hello.tradexserver.repository.TradingJournalRepository;
@@ -170,6 +171,15 @@ public class PositionReconstructionService {
             orderRepository.save(order);
             log.info("[Reconstruction] 신규 포지션 생성 - symbol: {}, side: {}, size: {}",
                     newPosition.getSymbol(), positionSide, order.getFilledQuantity());
+
+            eventPublisher.publishEvent(PositionOpenEvent.builder()
+                    .positionId(newPosition.getId())
+                    .userId(order.getUser().getId())
+                    .symbol(newPosition.getSymbol())
+                    .side(positionSide)
+                    .avgEntryPrice(newPosition.getAvgEntryPrice())
+                    .leverage(newPosition.getLeverage())
+                    .build());
         }
     }
 
@@ -266,6 +276,8 @@ public class PositionReconstructionService {
         eventPublisher.publishEvent(PositionCloseEvent.builder()
                 .positionId(position.getId())
                 .userId(position.getUser().getId())
+                .symbol(position.getSymbol())
+                .side(position.getSide())
                 .realizedPnl(position.getRealizedPnl())
                 .build());
     }
