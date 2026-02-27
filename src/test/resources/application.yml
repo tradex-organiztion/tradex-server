@@ -96,3 +96,7 @@ app:
 
 encryption:
   secret-key: P/V73TTVO9+F2ZLi9P/mjzrdnA8ScN+8OTq7Z4Ev+Zs=
+
+toss:
+  client-key: dummy-client-key
+  secret-key: dummy-secret-key
