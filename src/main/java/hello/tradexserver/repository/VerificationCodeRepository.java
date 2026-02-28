@@ -16,6 +16,9 @@ public interface VerificationCodeRepository extends JpaRepository<VerificationCo
     Optional<VerificationCode> findByPhoneNumberAndTypeAndVerifiedFalseAndExpiresAtAfter(
             String phoneNumber, VerificationType type, LocalDateTime now);
 
+    Optional<VerificationCode> findByPhoneNumberAndTypeAndVerifiedTrueAndExpiresAtAfter(
+            String phoneNumber, VerificationType type, LocalDateTime now);
+
     Optional<VerificationCode> findByPhoneNumberAndCodeAndTypeAndVerifiedFalseAndExpiresAtAfter(
             String phoneNumber, String code, VerificationType type, LocalDateTime now);
 

@@ -80,10 +80,20 @@ public class AuthService {
             throw new AuthException(ErrorCode.PHONE_ALREADY_EXISTS);
         }
 
-        // 보안: 아이디 찾기 시 미가입 번호면 조용히 리턴 (SMS 미발송, 200 반환)
-        if (type == VerificationType.FIND_EMAIL && !userRepository.existsByPhoneNumber(request.getPhoneNumber())) {
+        // 보안: 아이디 찾기 / 비밀번호 변경 시 미가입 번호면 조용히 리턴 (SMS 미발송, 200 반환)
+        if ((type == VerificationType.FIND_EMAIL || type == VerificationType.RESET_PASSWORD)
+                && !userRepository.existsByPhoneNumber(request.getPhoneNumber())) {
             log.info("SMS skipped for phone: {} (not registered)", request.getPhoneNumber());
             return;
+        }
+
+        // 비밀번호 변경 시 소셜 로그인 유저면 조용히 리턴 (비밀번호 없음)
+        if (type == VerificationType.RESET_PASSWORD) {
+            User user = userRepository.findByPhoneNumber(request.getPhoneNumber()).orElse(null);
+            if (user != null && user.getSocialProvider() != AuthProvider.LOCAL) {
+                log.info("SMS skipped for phone: {} (social login user)", request.getPhoneNumber());
+                return;
+            }
         }
 
         verificationService.sendVerificationCode(request.getPhoneNumber(), type);
@@ -95,6 +105,8 @@ public class AuthService {
     }
 
     public FindEmailResponse findEmail(FindEmailRequest request) {
+        verificationService.checkVerified(request.getPhoneNumber(), VerificationType.FIND_EMAIL);
+
         // 보안: 전화번호 존재 여부를 노출하지 않기 위해 항상 200 반환
         User user = userRepository.findByPhoneNumber(request.getPhoneNumber()).orElse(null);
 
@@ -134,6 +146,29 @@ public class AuthService {
         emailService.sendPasswordResetEmail(user.getEmail(), token);
 
         log.info("Password reset email sent to: {}", user.getEmail());
+    }
+
+    public void resetPasswordByPhone(Long userId, ResetPasswordByPhoneRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new AuthException(ErrorCode.USER_NOT_FOUND));
+
+        // 요청한 전화번호가 본인 것인지 확인
+        if (!request.getPhoneNumber().equals(user.getPhoneNumber())) {
+            throw new AuthException(ErrorCode.INVALID_CREDENTIALS);
+        }
+
+        // SMS 인증 완료 여부 확인
+        verificationService.checkVerified(request.getPhoneNumber(), VerificationType.RESET_PASSWORD);
+
+        // 기존 비밀번호 일치 여부 확인
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPasswordHash())) {
+            throw new AuthException(ErrorCode.INVALID_CREDENTIALS);
+        }
+
+        user.updatePassword(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+
+        log.info("Password changed by phone for userId: {}", user.getId());
     }
 
     public void resetPassword(ResetPasswordRequest request) {

@@ -63,18 +63,15 @@ public class VerificationService {
 
     public boolean isVerified(String phoneNumber, VerificationType type) {
         return verificationCodeRepository
-                .findByPhoneNumberAndTypeAndVerifiedFalseAndExpiresAtAfter(
+                .findByPhoneNumberAndTypeAndVerifiedTrueAndExpiresAtAfter(
                         phoneNumber, type, LocalDateTime.now())
-                .map(VerificationCode::isExpired)
-                .map(expired -> !expired)
-                .orElse(false);
+                .isPresent();
     }
 
     public void checkVerified(String phoneNumber, VerificationType type) {
         verificationCodeRepository
-                .findByPhoneNumberAndTypeAndVerifiedFalseAndExpiresAtAfter(
+                .findByPhoneNumberAndTypeAndVerifiedTrueAndExpiresAtAfter(
                         phoneNumber, type, LocalDateTime.now())
-                .filter(vc -> !vc.isExpired())
                 .orElseThrow(() -> new AuthException(ErrorCode.PHONE_NOT_VERIFIED));
     }
 
