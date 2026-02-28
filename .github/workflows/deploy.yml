@@ -22,11 +22,6 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Create application.yml
-        run: |
-          mkdir -p src/main/resources
-          echo "${{ secrets.APPLICATION_YML }}" | base64 -d > src/main/resources/application.yml
-
       - name: Build with Gradle
         run: ./gradlew build -x test
 
@@ -48,6 +43,20 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Create application.yml
+        run: |
+          mkdir -p config
+          echo "${{ secrets.APPLICATION_YML }}" | base64 -d > config/application.yml
+
+      - name: Copy application.yml to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "config/application.yml"
+          target: "~/app/"
+
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -55,7 +64,7 @@ jobs:
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            mkdir -p ~/app
+            chmod 600 ~/app/config/application.yml
             cd ~/app
 
             # Create docker-compose.yml
@@ -66,6 +75,8 @@ jobs:
                 container_name: tradex-server
                 network_mode: host
                 restart: unless-stopped
+                volumes:
+                  - ./config/application.yml:/app/config/application.yml:ro
                 healthcheck:
                   test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/actuator/health"]
                   interval: 30s

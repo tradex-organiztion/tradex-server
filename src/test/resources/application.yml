@@ -6,9 +6,9 @@ spring:
     name: tradex-server
 
   datasource:
-    url: jdbc:postgresql://tradex-db.cjc4aimu2sf7.ap-northeast-2.rds.amazonaws.com/tradex
+    url: jdbc:postgresql://localhost:5432/tradex_test
     username: postgres
-    password: xmfpdleprtm0101
+    password: postgres
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -75,7 +75,7 @@ spring:
           max-tokens: 2000
 
 jwt:
-  secret: dGhpc2lzYXZlcnlsb25nc2VjcmV0a2V5Zm9yand0dG9rZW5nZW5lcmF0aW9uMTIzNDU2Nzg5MA==
+  secret: dGVzdC1qd3Qtc2VjcmV0LWtleS1mb3ItdGVzdGluZyE=
   access-token-expiration: 900000
   refresh-token-expiration: 604800000
 
@@ -95,7 +95,7 @@ app:
     base-url: http://localhost:3000/reset-password
 
 encryption:
-  secret-key: P/V73TTVO9+F2ZLi9P/mjzrdnA8ScN+8OTq7Z4Ev+Zs=
+  secret-key: dGVzdC1lbmNyeXB0aW9uLWtleS0zMmJ5dGVzISEhISE=
 
 toss:
   client-key: dummy-client-key
