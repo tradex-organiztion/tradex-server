@@ -32,6 +32,26 @@ public class BybitRestClient implements ExchangeRestClient {
     private static final String BASE_URL = "https://api-demo.bybit.com/v5";
     // private static final String BASE_URL = "https://api.bybit.com/v5";
 
+    @Override
+    public boolean validateApiKey(ExchangeApiKey apiKey) {
+        String queryString = "";
+        try {
+            HttpEntity<String> entity = new HttpEntity<>(createSignedHeaders(apiKey, queryString));
+            ResponseEntity<Map> response = restTemplate.exchange(
+                    BASE_URL + "/user/query-api",
+                    HttpMethod.GET, entity, Map.class);
+
+            Map<String, Object> body = response.getBody();
+            if (body == null) return false;
+
+            int retCode = (int) body.getOrDefault("retCode", -1);
+            return retCode == 0;
+        } catch (Exception e) {
+            log.warn("[Bybit] API Key 검증 실패 - apiKeyId: {}", apiKey.getId(), e);
+            return false;
+        }
+    }
+
     public BybitOrderHistoryData fetchOrderHistory(ExchangeApiKey apiKey, String symbol,
                                                    LocalDateTime startTime, LocalDateTime endTime) {
         StringBuilder qs = new StringBuilder("category=linear&limit=50");

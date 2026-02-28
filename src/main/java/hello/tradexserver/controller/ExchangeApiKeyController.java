@@ -2,6 +2,7 @@ package hello.tradexserver.controller;
 
 import hello.tradexserver.domain.enums.ExchangeName;
 import hello.tradexserver.dto.request.ExchangeApiKeyRequest;
+import hello.tradexserver.dto.response.ApiKeyValidationResponse;
 import hello.tradexserver.dto.response.ApiResponse;
 import hello.tradexserver.dto.response.ExchangeApiKeyResponse;
 import hello.tradexserver.security.CustomUserDetails;
@@ -86,6 +87,27 @@ public class ExchangeApiKeyController {
         log.info("API Key 삭제 요청 - userId: {}, apiKeyId: {}", userDetails.getUserId(), apiKeyId);
         exchangeApiKeyService.deleteApiKey(userDetails.getUserId(), apiKeyId);
         return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
+    @Operation(summary = "특정 API 키 유효성 검증", description = "특정 거래소 API 키가 유효한지 검증합니다")
+    @GetMapping("/{apiKeyId}/validate")
+    public ResponseEntity<ApiResponse<ApiKeyValidationResponse>> validateApiKey(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable Long apiKeyId
+    ) {
+        log.info("API Key 검증 요청 - userId: {}, apiKeyId: {}", userDetails.getUserId(), apiKeyId);
+        ApiKeyValidationResponse response = exchangeApiKeyService.validateApiKey(userDetails.getUserId(), apiKeyId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "활성 API 키 전체 유효성 검증", description = "사용자의 모든 활성 API 키의 유효성을 검증합니다")
+    @GetMapping("/validate")
+    public ResponseEntity<ApiResponse<List<ApiKeyValidationResponse>>> validateAllApiKeys(
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        log.info("전체 API Key 검증 요청 - userId: {}", userDetails.getUserId());
+        List<ApiKeyValidationResponse> response = exchangeApiKeyService.validateAllApiKeys(userDetails.getUserId());
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @Operation(summary = "API 키 비활성화", description = "API 키를 비활성화합니다 (WebSocket 연결 해제)")

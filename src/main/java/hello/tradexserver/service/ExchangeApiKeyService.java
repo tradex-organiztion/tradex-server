@@ -4,10 +4,13 @@ import hello.tradexserver.domain.ExchangeApiKey;
 import hello.tradexserver.domain.User;
 import hello.tradexserver.domain.enums.ExchangeName;
 import hello.tradexserver.dto.request.ExchangeApiKeyRequest;
+import hello.tradexserver.dto.response.ApiKeyValidationResponse;
 import hello.tradexserver.dto.response.ExchangeApiKeyResponse;
 import hello.tradexserver.exception.AuthException;
 import hello.tradexserver.exception.BusinessException;
 import hello.tradexserver.exception.ErrorCode;
+import hello.tradexserver.openApi.rest.ExchangeFactory;
+import hello.tradexserver.openApi.rest.ExchangeRestClient;
 import hello.tradexserver.openApi.webSocket.ExchangeWebSocketManager;
 import hello.tradexserver.repository.ExchangeApiKeyRepository;
 import hello.tradexserver.repository.UserRepository;
@@ -28,6 +31,7 @@ public class ExchangeApiKeyService {
     private final ExchangeApiKeyRepository exchangeApiKeyRepository;
     private final UserRepository userRepository;
     private final ExchangeWebSocketManager exchangeWebSocketManager;
+    private final ExchangeFactory exchangeFactory;
 
     /**
      * API 키 추가
@@ -55,6 +59,12 @@ public class ExchangeApiKeyService {
                 .apiSecret(request.getApiSecret())
                 .passphrase(request.getPassphrase())
                 .build();
+
+        // API Key 유효성 검증
+        ExchangeRestClient client = exchangeFactory.getExchangeService(request.getExchangeName());
+        if (!client.validateApiKey(apiKey)) {
+            throw new BusinessException(ErrorCode.INVALID_API_KEY);
+        }
 
         exchangeApiKeyRepository.save(apiKey);
         log.info("API Key 추가 완료 - userId: {}, exchange: {}", userId, request.getExchangeName());
@@ -202,5 +212,39 @@ public class ExchangeApiKeyService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.EXCHANGE_API_KEY_NOT_FOUND));
 
         return ExchangeApiKeyResponse.from(apiKey);
+    }
+
+    /**
+     * 단일 API 키 유효성 검증
+     */
+    @Transactional(readOnly = true)
+    public ApiKeyValidationResponse validateApiKey(Long userId, Long apiKeyId) {
+        ExchangeApiKey apiKey = exchangeApiKeyRepository.findById(apiKeyId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.EXCHANGE_API_KEY_NOT_FOUND));
+
+        if (!apiKey.getUser().getId().equals(userId)) {
+            throw new BusinessException(ErrorCode.EXCHANGE_API_KEY_NOT_FOUND);
+        }
+
+        ExchangeRestClient client = exchangeFactory.getExchangeService(apiKey.getExchangeName());
+        boolean isValid = client.validateApiKey(apiKey);
+
+        return ApiKeyValidationResponse.of(apiKey, isValid);
+    }
+
+    /**
+     * 사용자의 활성 API 키 전체 유효성 검증
+     */
+    @Transactional(readOnly = true)
+    public List<ApiKeyValidationResponse> validateAllApiKeys(Long userId) {
+        List<ExchangeApiKey> apiKeys = exchangeApiKeyRepository.findActiveByUserId(userId);
+
+        return apiKeys.stream()
+                .map(apiKey -> {
+                    ExchangeRestClient client = exchangeFactory.getExchangeService(apiKey.getExchangeName());
+                    boolean isValid = client.validateApiKey(apiKey);
+                    return ApiKeyValidationResponse.of(apiKey, isValid);
+                })
+                .collect(Collectors.toList());
     }
 }

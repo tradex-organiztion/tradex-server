@@ -11,7 +11,10 @@ import hello.tradexserver.dto.response.AuthResponse;
 import hello.tradexserver.dto.response.FindEmailResponse;
 import hello.tradexserver.dto.response.UserResponse;
 import hello.tradexserver.exception.AuthException;
+import hello.tradexserver.exception.BusinessException;
 import hello.tradexserver.exception.ErrorCode;
+import hello.tradexserver.openApi.rest.ExchangeFactory;
+import hello.tradexserver.openApi.rest.ExchangeRestClient;
 import hello.tradexserver.openApi.webSocket.ExchangeWebSocketManager;
 import hello.tradexserver.repository.ExchangeApiKeyRepository;
 import hello.tradexserver.repository.PasswordResetTokenRepository;
@@ -45,6 +48,7 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final AuthenticationManager authenticationManager;
     private final ExchangeWebSocketManager exchangeWebSocketManager;
+    private final ExchangeFactory exchangeFactory;
     private final VerificationService verificationService;
     private final EmailService emailService;
 
@@ -251,15 +255,21 @@ public class AuthService {
             user.updateProfile(request.getUsername(), null);
         }
 
-        // TODO: API Key 검증
-
-        // 거래소 API 키 저장
+        // API Key 검증
         ExchangeApiKey apiKey = ExchangeApiKey.builder()
                 .user(user)
                 .exchangeName(request.getExchangeName())
                 .apiKey(request.getApiKey())
                 .apiSecret(request.getApiSecret())
+                .passphrase(request.getPassphrase())
                 .build();
+
+        ExchangeRestClient client = exchangeFactory.getExchangeService(request.getExchangeName());
+        if (!client.validateApiKey(apiKey)) {
+            throw new BusinessException(ErrorCode.INVALID_API_KEY);
+        }
+
+        // 거래소 API 키 저장
         exchangeApiKeyRepository.save(apiKey);
 
         // 프로필 완료 처리

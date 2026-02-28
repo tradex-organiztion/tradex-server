@@ -33,6 +33,26 @@ public class BinanceRestClient implements ExchangeRestClient {
     // Live API
     // private static final String BASE_URL = "https://fapi.binance.com";
 
+    @Override
+    public boolean validateApiKey(ExchangeApiKey apiKey) {
+        try {
+            String timestamp = String.valueOf(System.currentTimeMillis());
+            String queryString = "timestamp=" + timestamp;
+            String signature = BinanceSignatureUtil.generateSignature(apiKey.getApiSecret(), queryString);
+            queryString += "&signature=" + signature;
+
+            HttpEntity<String> entity = new HttpEntity<>(createApiKeyHeader(apiKey));
+            ResponseEntity<String> response = restTemplate.exchange(
+                    BASE_URL + "/fapi/v3/balance?" + queryString,
+                    HttpMethod.GET, entity, String.class);
+
+            return response.getStatusCode().is2xxSuccessful();
+        } catch (Exception e) {
+            log.warn("[Binance] API Key 검증 실패 - apiKeyId: {}", apiKey.getId(), e);
+            return false;
+        }
+    }
+
     /**
      * User Data Stream listenKey 생성
      */
