@@ -6,9 +6,9 @@ spring:
     name: tradex-server
 
   datasource:
-    url: jdbc:postgresql://tradex-db.cjc4aimu2sf7.ap-northeast-2.rds.amazonaws.com/tradex
+    url: jdbc:postgresql://localhost:5432/tradex_test
     username: postgres
-    password: xmfpdleprtm0101
+    password: postgres
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -95,7 +95,7 @@ app:
     base-url: http://localhost:3000/reset-password
 
 encryption:
-  secret-key: P/V73TTVO9+F2ZLi9P/mjzrdnA8ScN+8OTq7Z4Ev+Zs=
+  secret-key: dummy-encryption-key
 
 toss:
   client-key: dummy-client-key
