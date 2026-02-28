@@ -31,7 +31,7 @@ public class AuthController {
     @Operation(summary = "SMS 인증번호 발송", description = """
             회원가입 또는 아이디 찾기를 위한 SMS 인증번호를 발송합니다.
 
-            - type: SIGNUP(회원가입), FIND_EMAIL(아이디찾기)
+            - type: SIGNUP(회원가입), FIND_EMAIL(아이디찾기), RESET_PASSWORD(비밀번호 재설정)
             - 아이디 찾기 시 미가입 번호는 보안을 위해 SMS 미발송 후 200 반환
             """)
     @ApiResponses({
@@ -156,4 +156,5 @@ public class AuthController {
         authService.resetPassword(request);
         return ResponseEntity.ok(MessageResponse.of("비밀번호가 성공적으로 변경되었습니다."));
     }
+
 }
