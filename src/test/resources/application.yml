@@ -75,7 +75,7 @@ spring:
           max-tokens: 2000
 
 jwt:
-  secret: dGhpc2lzYXZlcnlsb25nc2VjcmV0a2V5Zm9yand0dG9rZW5nZW5lcmF0aW9uMTIzNDU2Nzg5MA==
+  secret: jwt-secret-key
   access-token-expiration: 900000
   refresh-token-expiration: 604800000
 
