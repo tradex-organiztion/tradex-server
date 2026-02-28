@@ -48,6 +48,7 @@ public class TradingJournalService {
     private final OrderRepository orderRepository;
     private final TradingPrincipleRepository tradingPrincipleRepository;
     private final TradingPrincipleCheckRepository tradingPrincipleCheckRepository;
+    private final S3Service s3Service;
 
     /**
      * 매매일지 목록 조회 (포지션 요약 포함, 필터링 + 페이지네이션)
@@ -201,11 +202,21 @@ public class TradingJournalService {
     }
 
     /**
-     * 차트 스크린샷 업로드 후 URL 반환
-     * TODO: S3 연동 구현 필요
+     * 차트 스크린샷을 S3에 업로드하고 매매일지에 저장한 뒤 URL을 반환합니다.
+     * 기존 스크린샷이 있으면 S3에서 먼저 삭제합니다.
      */
-    public String uploadScreenshot(Long userId, MultipartFile file) {
-        throw new UnsupportedOperationException("S3 연동이 구현되지 않았습니다");
+    public String uploadScreenshot(Long userId, Long journalId, MultipartFile file) {
+        TradingJournal journal = tradingJournalRepository.findByIdAndUserId(journalId, userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.JOURNAL_NOT_FOUND));
+
+        if (journal.getChartScreenshotUrl() != null) {
+            s3Service.delete(journal.getChartScreenshotUrl());
+        }
+
+        String url = s3Service.upload(userId, file, "screenshots");
+        journal.updateScreenshotUrl(url);
+
+        return url;
     }
 
     /**

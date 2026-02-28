@@ -100,3 +100,10 @@ encryption:
 toss:
   client-key: dummy-client-key
   secret-key: dummy-secret-key
+
+aws:
+  s3:
+    bucket-name: test-bucket
+    region: ap-northeast-2
+    access-key: test-access-key
+    secret-key: test-secret-key

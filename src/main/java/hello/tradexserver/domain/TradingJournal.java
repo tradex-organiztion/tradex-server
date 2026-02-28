@@ -80,6 +80,10 @@ public class TradingJournal extends BaseTimeEntity {
     @OneToOne(mappedBy = "tradingJournal", fetch = FetchType.LAZY)
     private RefinedJournal refinedJournal;
 
+    public void updateScreenshotUrl(String url) {
+        this.chartScreenshotUrl = url;
+    }
+
     public void update(BigDecimal targetPrice, BigDecimal stopLoss,
                        String entryReason, String targetScenario,
                        String chartScreenshotUrl, String reviewContent,

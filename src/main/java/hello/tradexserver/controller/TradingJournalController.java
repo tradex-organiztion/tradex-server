@@ -117,13 +117,14 @@ public class TradingJournalController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
-    @PostMapping(value = "/screenshot", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "차트 스크린샷 업로드", description = "차트 이미지를 업로드하고 URL을 반환합니다.")
+    @PostMapping(value = "/{journalId}/screenshot", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "차트 스크린샷 업로드", description = "차트 이미지를 S3에 업로드하고 매매일지에 저장한 뒤 URL을 반환합니다.")
     public ResponseEntity<ApiResponse<String>> uploadScreenshot(
             @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable Long journalId,
             @RequestPart("file") MultipartFile file
     ) {
-        String url = tradingJournalService.uploadScreenshot(userDetails.getUserId(), file);
+        String url = tradingJournalService.uploadScreenshot(userDetails.getUserId(), journalId, file);
         return ResponseEntity.ok(ApiResponse.success("업로드 완료", url));
     }
 

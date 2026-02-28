@@ -65,7 +65,14 @@ public enum ErrorCode {
     ALREADY_SAME_PLAN(HttpStatus.BAD_REQUEST, "SUB003", "이미 동일한 플랜을 구독 중입니다"),
     SUBSCRIPTION_NOT_ACTIVE(HttpStatus.BAD_REQUEST, "SUB004", "활성 구독이 없습니다"),
     PAYMENT_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "SUB005", "결제에 실패했습니다"),
-    FREE_PLAN_NO_BILLING(HttpStatus.BAD_REQUEST, "SUB006", "무료 플랜은 결제 수단이 필요하지 않습니다");
+    FREE_PLAN_NO_BILLING(HttpStatus.BAD_REQUEST, "SUB006", "무료 플랜은 결제 수단이 필요하지 않습니다"),
+
+    // S3 / File
+    FILE_EMPTY(HttpStatus.BAD_REQUEST, "FILE001", "파일이 비어있습니다"),
+    INVALID_FILE_TYPE(HttpStatus.BAD_REQUEST, "FILE002", "이미지 파일만 업로드 가능합니다"),
+    FILE_TOO_LARGE(HttpStatus.BAD_REQUEST, "FILE003", "파일 크기는 10MB를 초과할 수 없습니다"),
+    FILE_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "FILE004", "파일 업로드에 실패했습니다"),
+    FILE_DELETE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "FILE005", "파일 삭제에 실패했습니다");
 
     private final HttpStatus status;
     private final String code;
