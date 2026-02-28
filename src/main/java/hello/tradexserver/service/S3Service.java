@@ -10,9 +10,13 @@ import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.UUID;
 
 @Slf4j
@@ -21,8 +25,10 @@ import java.util.UUID;
 public class S3Service {
 
     private static final long MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+    private static final Duration PRESIGNED_URL_DURATION = Duration.ofMinutes(60);
 
     private final S3Client s3Client;
+    private final S3Presigner s3Presigner;
     private final AwsS3Properties props;
 
     /**
@@ -55,6 +61,23 @@ public class S3Service {
             log.error("[S3Service] 파일 업로드 실패 - userId: {}, key: {}", userId, key, e);
             throw new BusinessException(ErrorCode.FILE_UPLOAD_FAILED);
         }
+    }
+
+    /**
+     * S3 파일에 대한 Presigned URL을 생성합니다. (유효 시간: 60분)
+     */
+    public String generatePresignedUrl(String fileUrl) {
+        String key = extractKeyFromUrl(fileUrl);
+
+        GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+                .signatureDuration(PRESIGNED_URL_DURATION)
+                .getObjectRequest(GetObjectRequest.builder()
+                        .bucket(props.getBucketName())
+                        .key(key)
+                        .build())
+                .build();
+
+        return s3Presigner.presignGetObject(presignRequest).url().toString();
     }
 
     /**
