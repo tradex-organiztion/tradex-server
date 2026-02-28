@@ -61,7 +61,8 @@ public class JournalDetailResponse {
     private LocalDateTime createdAt;
 
     public static JournalDetailResponse from(TradingJournal journal, List<OrderResponse> orders,
-                                             List<PrincipleCheckResponse> principleChecks) {
+                                             List<PrincipleCheckResponse> principleChecks,
+                                             String chartScreenshotUrl) {
         Position position = journal.getPosition();
         return JournalDetailResponse.builder()
                 .journalId(journal.getId())
@@ -73,7 +74,7 @@ public class JournalDetailResponse {
                 .stopLoss(journal.getStopLoss())
                 .entryReason(journal.getEntryReason())
                 .targetScenario(journal.getTargetScenario())
-                .chartScreenshotUrl(journal.getChartScreenshotUrl())
+                .chartScreenshotUrl(chartScreenshotUrl)
                 .reviewContent(journal.getReviewContent())
                 .principleChecks(principleChecks)
                 .exchangeName(position.getExchangeName())

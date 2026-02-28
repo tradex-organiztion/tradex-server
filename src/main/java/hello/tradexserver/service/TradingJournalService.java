@@ -100,7 +100,8 @@ public class TradingJournalService {
 
         List<PrincipleCheckResponse> principleChecks = buildPrincipleChecks(userId, journalId);
 
-        return JournalDetailResponse.from(journal, orders, principleChecks);
+        return JournalDetailResponse.from(journal, orders, principleChecks,
+                toPresignedUrl(journal.getChartScreenshotUrl()));
     }
 
     /**
@@ -144,7 +145,8 @@ public class TradingJournalService {
 
         List<PrincipleCheckResponse> principleChecks = buildPrincipleChecks(userId, journalId);
 
-        return JournalDetailResponse.from(journal, orders, principleChecks);
+        return JournalDetailResponse.from(journal, orders, principleChecks,
+                toPresignedUrl(journal.getChartScreenshotUrl()));
     }
 
     /**
@@ -199,6 +201,11 @@ public class TradingJournalService {
 
         tradingJournalRepository.delete(journal);
         log.info("[JournalService] 매매일지 삭제 - userId: {}, journalId: {}", userId, journalId);
+    }
+
+    private String toPresignedUrl(String s3Url) {
+        if (s3Url == null) return null;
+        return s3Service.generatePresignedUrl(s3Url);
     }
 
     /**
