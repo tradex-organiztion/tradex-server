@@ -100,16 +100,6 @@ public class ExchangeApiKeyController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
-    @Operation(summary = "활성 API 키 전체 유효성 검증", description = "사용자의 모든 활성 API 키의 유효성을 검증합니다")
-    @GetMapping("/validate")
-    public ResponseEntity<ApiResponse<List<ApiKeyValidationResponse>>> validateAllApiKeys(
-            @AuthenticationPrincipal CustomUserDetails userDetails
-    ) {
-        log.info("전체 API Key 검증 요청 - userId: {}", userDetails.getUserId());
-        List<ApiKeyValidationResponse> response = exchangeApiKeyService.validateAllApiKeys(userDetails.getUserId());
-        return ResponseEntity.ok(ApiResponse.success(response));
-    }
-
     @Operation(summary = "API 키 비활성화", description = "API 키를 비활성화합니다 (WebSocket 연결 해제)")
     @PatchMapping("/{apiKeyId}/deactivate")
     public ResponseEntity<ApiResponse<ExchangeApiKeyResponse>> deactivateApiKey(

@@ -236,20 +236,4 @@ public class ExchangeApiKeyService {
 
         return ApiKeyValidationResponse.of(apiKey, isValid);
     }
-
-    /**
-     * 사용자의 활성 API 키 전체 유효성 검증
-     * - DB 조회 후 외부 API 호출이므로 트랜잭션 없이 실행
-     */
-    public List<ApiKeyValidationResponse> validateAllApiKeys(Long userId) {
-        List<ExchangeApiKey> apiKeys = exchangeApiKeyRepository.findActiveByUserId(userId);
-
-        return apiKeys.stream()
-                .map(apiKey -> {
-                    ExchangeRestClient client = exchangeFactory.getExchangeService(apiKey.getExchangeName());
-                    boolean isValid = client.validateApiKey(apiKey);
-                    return ApiKeyValidationResponse.of(apiKey, isValid);
-                })
-                .collect(Collectors.toList());
-    }
 }
