@@ -27,7 +27,10 @@ public class ExchangeApiKeyController {
 
     private final ExchangeApiKeyService exchangeApiKeyService;
 
-    @Operation(summary = "API 키 추가", description = "새로운 거래소 API 키를 추가합니다")
+    @Operation(summary = "API 키 추가", description = "새로운 거래소 API 키를 추가합니다"+
+            "ExchangeName: BYBIT, BINANCE, BITGET" +
+            "BYBIT, BINANCE는 apiKey, apiSecret이 필요," +
+            "BITGET은 passphrase 값이 추가로 필요합니다.")
     @PostMapping
     public ResponseEntity<ApiResponse<ExchangeApiKeyResponse>> addApiKey(
             @AuthenticationPrincipal CustomUserDetails userDetails,
