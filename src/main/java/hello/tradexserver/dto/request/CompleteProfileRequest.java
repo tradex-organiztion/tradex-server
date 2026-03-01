@@ -24,4 +24,6 @@ public class CompleteProfileRequest {
 
     @NotBlank(message = "API Secret은 필수입니다")
     private String apiSecret;
+
+    private String passphrase; // Bitget 전용
 }

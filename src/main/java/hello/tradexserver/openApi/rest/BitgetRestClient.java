@@ -33,6 +33,31 @@ public class BitgetRestClient implements ExchangeRestClient {
     private static final boolean IS_DEMO_MODE = true;
 
     @Override
+    public boolean validateApiKey(ExchangeApiKey apiKey) {
+        try {
+            String requestPath = "/api/v2/mix/account/accounts";
+            String queryString = "productType=USDT-FUTURES";
+            String fullPath = requestPath + "?" + queryString;
+
+            String timestamp = String.valueOf(System.currentTimeMillis());
+            HttpHeaders headers = createAuthHeaders(apiKey, timestamp, "GET", fullPath, "");
+
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+            ResponseEntity<String> response = restTemplate.exchange(
+                    BASE_URL + fullPath, HttpMethod.GET, entity, String.class);
+
+            String body = response.getBody();
+            if (body == null) return false;
+
+            JsonNode root = objectMapper.readTree(body);
+            return "00000".equals(root.path("code").asText());
+        } catch (Exception e) {
+            log.warn("[Bitget] API Key 검증 실패 - apiKeyId: {}", apiKey.getId(), e);
+            return false;
+        }
+    }
+
+    @Override
     public BigDecimal getAsset(ExchangeApiKey apiKey) {
         // TODO: implement
         log.info("[Bitget] getAsset - TODO");
