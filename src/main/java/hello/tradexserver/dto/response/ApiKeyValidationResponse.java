@@ -1,5 +1,6 @@
 package hello.tradexserver.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import hello.tradexserver.domain.ExchangeApiKey;
 import hello.tradexserver.domain.enums.ExchangeName;
 import lombok.AllArgsConstructor;
@@ -15,6 +16,7 @@ public class ApiKeyValidationResponse {
 
     private Long apiKeyId;
     private ExchangeName exchangeName;
+    @JsonProperty("isValid")
     private boolean isValid;
     private String maskedApiKey;
 
