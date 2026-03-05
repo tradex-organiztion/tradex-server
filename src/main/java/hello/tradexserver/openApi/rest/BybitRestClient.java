@@ -29,8 +29,8 @@ public class BybitRestClient implements ExchangeRestClient {
 
     private final RestTemplate restTemplate;
 
-    private static final String BASE_URL = "https://api-demo.bybit.com/v5";
-    // private static final String BASE_URL = "https://api.bybit.com/v5";
+    // private static final String BASE_URL = "https://api-demo.bybit.com/v5";
+    private static final String BASE_URL = "https://api.bybit.com/v5";
 
     @Override
     public boolean validateApiKey(ExchangeApiKey apiKey) {

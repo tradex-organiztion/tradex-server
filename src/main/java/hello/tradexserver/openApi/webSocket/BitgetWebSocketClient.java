@@ -32,9 +32,9 @@ import java.util.concurrent.atomic.AtomicReference;
 public class BitgetWebSocketClient implements ExchangeWebSocketClient {
 
     // live용 base url
-//    private static final String WSS_URL = "wss://ws.bitget.com/v2/ws/private";
+    private static final String WSS_URL = "wss://ws.bitget.com/v2/ws/private";
     // demo용 base url
-    private static final String WSS_URL = "wss://wspap.bitget.com/v2/ws/private";
+//    private static final String WSS_URL = "wss://wspap.bitget.com/v2/ws/private";
 
     private final Long userId;
     private final ExchangeApiKey exchangeApiKey;
