@@ -30,7 +30,7 @@ public class BitgetRestClient implements ExchangeRestClient {
     private static final String BASE_URL = "https://api.bitget.com";
 
     // 데모 모드 여부 (데모 트레이딩 시 true)
-    private static final boolean IS_DEMO_MODE = true;
+    private static final boolean IS_DEMO_MODE = false;
 
     @Override
     public boolean validateApiKey(ExchangeApiKey apiKey) {

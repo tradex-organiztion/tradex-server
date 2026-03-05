@@ -29,9 +29,9 @@ public class BinanceRestClient implements ExchangeRestClient {
     private final ObjectMapper objectMapper;
 
     // Testnet API
-    private static final String BASE_URL = "https://testnet.binancefuture.com";
+    // private static final String BASE_URL = "https://testnet.binancefuture.com";
     // Live API
-    // private static final String BASE_URL = "https://fapi.binance.com";
+    private static final String BASE_URL = "https://fapi.binance.com";
 
     @Override
     public boolean validateApiKey(ExchangeApiKey apiKey) {
