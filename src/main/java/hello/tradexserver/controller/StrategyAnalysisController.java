@@ -1,6 +1,7 @@
 package hello.tradexserver.controller;
 
 import hello.tradexserver.dto.response.ApiResponse;
+import hello.tradexserver.dto.response.strategy.PerformanceResponse;
 import hello.tradexserver.dto.response.strategy.StrategyAnalysisResponse;
 import hello.tradexserver.security.CustomUserDetails;
 import hello.tradexserver.service.StrategyAnalysisService;
@@ -48,6 +49,32 @@ public class StrategyAnalysisController {
 
         return ApiResponse.success(
                 strategyAnalysisService.analyze(
+                        userDetails.getUserId(), exchangeName, period, startDate, endDate));
+    }
+
+    @GetMapping("/performance")
+    @Operation(summary = "기간별 성과 곡선 조회", description = """
+            선택한 기간에 따라 그래프 단위가 자동으로 결정됩니다.
+
+            - 단기(7d, 30d): 일별 그래프
+            - 중기(60d, 90d, 180d): 주별 그래프
+            - 장기(all 또는 custom 1년 초과): 월별 그래프
+
+            응답의 `granularity` 필드로 단위를 확인하세요.
+            """)
+    public ApiResponse<PerformanceResponse> performance(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @Parameter(description = "거래소 (BYBIT 등, 미입력 시 전체)")
+            @RequestParam(required = false) String exchangeName,
+            @Parameter(description = "기간 (7d, 30d, 60d, 90d, 180d, all, custom)")
+            @RequestParam(defaultValue = "30d") String period,
+            @Parameter(description = "조회 시작일 (period=custom 시 사용, yyyy-MM-dd)")
+            @RequestParam(required = false) LocalDate startDate,
+            @Parameter(description = "조회 종료일 (period=custom 시 사용, yyyy-MM-dd)")
+            @RequestParam(required = false) LocalDate endDate) {
+
+        return ApiResponse.success(
+                strategyAnalysisService.performance(
                         userDetails.getUserId(), exchangeName, period, startDate, endDate));
     }
 }
