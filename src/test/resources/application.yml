@@ -2,6 +2,12 @@ server:
   forward-headers-strategy: native
 
 spring:
+  config:
+    import: ""
+  cloud:
+    aws:
+      parameterstore:
+        enabled: false
   application:
     name: tradex-server
 
