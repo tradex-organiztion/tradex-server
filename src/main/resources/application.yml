@@ -2,28 +2,30 @@ server:
   forward-headers-strategy: native
 
 spring:
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
   config:
-    import: ""
+    import: optional:aws-parameterstore:/tradex/${spring.profiles.active}/
   cloud:
     aws:
       parameterstore:
-        enabled: false
+        region: ap-northeast-2
+
   application:
     name: tradex-server
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/tradex_test
-    username: postgres
-    password: postgres
+    url: ${db.url}
+    username: ${db.username}
+    password: ${db.password}
     driver-class-name: org.postgresql.Driver
 
   jpa:
     hibernate:
-      ddl-auto: update
-    show-sql: true
+      ddl-auto: ${jpa.ddl-auto:none}
+    show-sql: false
     properties:
       hibernate:
-        format_sql: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
   security:
@@ -31,14 +33,14 @@ spring:
       client:
         registration:
           google:
-            client-id: test-google-client-id
-            client-secret: test-google-client-secret
+            client-id: ${oauth2.google.client-id}
+            client-secret: ${oauth2.google.client-secret}
             scope:
               - email
               - profile
           kakao:
-            client-id: test-kakao-client-id
-            client-secret: test-kakao-client-secret
+            client-id: ${oauth2.kakao.client-id}
+            client-secret: ${oauth2.kakao.client-secret}
             client-authentication-method: client_secret_post
             authorization-grant-type: authorization_code
             redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
@@ -57,23 +59,21 @@ spring:
   mail:
     host: smtp.gmail.com
     port: 587
-    username: test@example.com
-    password: test-password
+    username: ${mail.username}
+    password: ${mail.password}
     properties:
       mail:
         smtp:
           auth: true
           starttls:
             enable: true
-
   data:
     redis:
-      host: localhost
-      port: 6379
-
+      host: ${redis.host:localhost}
+      port: ${redis.port:6379}
   ai:
     openai:
-      api-key: test-api-key
+      api-key: ${openai.api-key}
       chat:
         options:
           model: gpt-4o-mini
@@ -81,35 +81,44 @@ spring:
           max-tokens: 2000
 
 jwt:
-  secret: dGVzdC1qd3Qtc2VjcmV0LWtleS1mb3ItdGVzdGluZyE=
+  secret: ${jwt.secret}
   access-token-expiration: 900000
   refresh-token-expiration: 604800000
 
 solapi:
-  api-key: test-solapi-api-key
-  api-secret: test-solapi-api-secret
-  sender-number: 010-0000-0000
+  api-key: ${solapi.api-key}
+  api-secret: ${solapi.api-secret}
+  sender-number: ${solapi.sender-number}
 
 app:
   oauth2:
-    redirect-uri: http://localhost:3000/oauth2/redirect
-    allowed-redirect-uris:
-      - http://localhost:3000
+    redirect-uri: ${app.oauth2.redirect-uri}
+    allowed-redirect-uris: ${app.oauth2.allowed-redirect-uris}
   cors:
-    allowed-origins: http://localhost:3000
+    allowed-origins: ${app.cors.allowed-origins}
   password-reset:
-    base-url: http://localhost:3000/reset-password
+    base-url: ${app.password-reset.base-url}
 
 encryption:
-  secret-key: dGVzdC1lbmNyeXB0aW9uLWtleS0zMmJ5dGVzISEhISE=
+  secret-key: ${encryption.secret-key}
+
+management:
+  health:
+    mail:
+      enabled: false
+
+logging:
+  level:
+    org.hibernate.SQL: warn
+    org.hibernate.orm.jdbc.bind: warn
 
 toss:
-  client-key: dummy-client-key
-  secret-key: dummy-secret-key
+  client-key: ${toss.client-key}
+  secret-key: ${toss.secret-key}
 
 aws:
   s3:
-    bucket-name: test-bucket
+    bucket-name: tradex-files-bucket
     region: ap-northeast-2
-    access-key: test-access-key
-    secret-key: test-secret-key
+    access-key: ${aws.s3.access-key}
+    secret-key: ${aws.s3.secret-key}
