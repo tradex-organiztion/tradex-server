@@ -5,6 +5,7 @@ import hello.tradexserver.domain.TradingJournal;
 import hello.tradexserver.domain.enums.ExchangeName;
 import hello.tradexserver.domain.enums.MarketCondition;
 import hello.tradexserver.domain.enums.PositionSide;
+import hello.tradexserver.dto.response.strategy.PerformanceResponse;
 import hello.tradexserver.dto.response.strategy.StrategyAnalysisResponse;
 import hello.tradexserver.dto.response.strategy.StrategyAnalysisResponse.StrategyItem;
 import hello.tradexserver.repository.PositionRepository;
@@ -14,8 +15,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.IsoFields;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -56,6 +59,165 @@ public class StrategyAnalysisService {
         return StrategyAnalysisResponse.builder()
                 .totalTrades(positions.size())
                 .strategies(strategies)
+                .build();
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // 성과 곡선 (일별/주별/월별 PnL + 최대 연속 승/패)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    public PerformanceResponse performance(Long userId, String exchangeName, String period,
+                                           LocalDate startDate, LocalDate endDate) {
+        ExchangeName exchange = exchangeName != null ? ExchangeName.valueOf(exchangeName.toUpperCase()) : null;
+        LocalDateTime[] range = resolveRange(period, startDate, endDate);
+
+        List<Position> positions = positionRepository.findClosedForPerformance(
+                userId, exchange, range[0], range[1]);
+
+        if (positions.isEmpty()) {
+            return PerformanceResponse.builder()
+                    .granularity("DAILY")
+                    .data(List.of())
+                    .summary(PerformanceResponse.Summary.builder()
+                            .maxWinStreak(0).maxLossStreak(0).totalPnl(BigDecimal.ZERO).build())
+                    .build();
+        }
+
+        String granularity = resolveGranularity(period, startDate, endDate, positions);
+
+        return PerformanceResponse.builder()
+                .granularity(granularity)
+                .data(buildDataPoints(positions, granularity))
+                .summary(buildSummary(positions))
+                .build();
+    }
+
+    private String resolveGranularity(String period, LocalDate startDate, LocalDate endDate,
+                                       List<Position> positions) {
+        long days;
+        if ("all".equals(period)) {
+            LocalDate first = positions.get(0).getExitTime().toLocalDate();
+            LocalDate last = positions.get(positions.size() - 1).getExitTime().toLocalDate();
+            days = java.time.temporal.ChronoUnit.DAYS.between(first, last);
+        } else if ("custom".equals(period)) {
+            LocalDate s = startDate != null ? startDate : LocalDate.now().minusDays(30);
+            LocalDate e = endDate != null ? endDate : LocalDate.now();
+            days = java.time.temporal.ChronoUnit.DAYS.between(s, e);
+        } else {
+            return switch (period == null ? "30d" : period) {
+                case "7d", "30d" -> "DAILY";
+                default -> "WEEKLY"; // 60d, 90d, 180d
+            };
+        }
+        if (days <= 30) return "DAILY";
+        if (days <= 365) return "WEEKLY";
+        return "MONTHLY";
+    }
+
+    private List<PerformanceResponse.DataPoint> buildDataPoints(List<Position> positions, String granularity) {
+        // exitTime ASC로 이미 정렬된 positions → LinkedHashMap으로 순서 유지
+        Map<String, List<Position>> grouped = new LinkedHashMap<>();
+        for (Position p : positions) {
+            String key = getPeriodKey(p.getExitTime().toLocalDate(), granularity);
+            grouped.computeIfAbsent(key, k -> new ArrayList<>()).add(p);
+        }
+
+        BigDecimal cumulative = BigDecimal.ZERO;
+        List<PerformanceResponse.DataPoint> result = new ArrayList<>();
+
+        for (Map.Entry<String, List<Position>> entry : grouped.entrySet()) {
+            String key = entry.getKey();
+            List<Position> group = entry.getValue();
+
+            BigDecimal pnl = group.stream()
+                    .map(p -> p.getRealizedPnl() != null ? p.getRealizedPnl() : BigDecimal.ZERO)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            cumulative = cumulative.add(pnl);
+
+            int wins = (int) group.stream()
+                    .filter(p -> p.getRealizedPnl() != null && p.getRealizedPnl().compareTo(BigDecimal.ZERO) > 0)
+                    .count();
+
+            LocalDate[] dateRange = getDateRange(key, granularity);
+
+            result.add(PerformanceResponse.DataPoint.builder()
+                    .label(toLabel(key, granularity))
+                    .startDate(dateRange[0].toString())
+                    .endDate(dateRange[1].toString())
+                    .pnl(pnl.setScale(2, RoundingMode.HALF_UP))
+                    .cumulativePnl(cumulative.setScale(2, RoundingMode.HALF_UP))
+                    .tradeCount(group.size())
+                    .winCount(wins)
+                    .lossCount(group.size() - wins)
+                    .build());
+        }
+        return result;
+    }
+
+    /** 포지션을 단위별 키로 변환 (DAILY: "2026-02-15", WEEKLY: "2026-07", MONTHLY: "2026-02") */
+    private String getPeriodKey(LocalDate date, String granularity) {
+        return switch (granularity) {
+            case "WEEKLY" -> String.format("%d-%02d",
+                    date.get(IsoFields.WEEK_BASED_YEAR),
+                    date.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR));
+            case "MONTHLY" -> String.format("%d-%02d", date.getYear(), date.getMonthValue());
+            default -> date.toString(); // DAILY
+        };
+    }
+
+    /** 응답용 label (WEEKLY만 "2026-W07" 형식으로 변환, 나머지는 key 그대로) */
+    private String toLabel(String key, String granularity) {
+        if ("WEEKLY".equals(granularity)) {
+            String[] parts = key.split("-");
+            return parts[0] + "-W" + parts[1];
+        }
+        return key;
+    }
+
+    private LocalDate[] getDateRange(String key, String granularity) {
+        return switch (granularity) {
+            case "WEEKLY" -> {
+                String[] parts = key.split("-");
+                LocalDate monday = LocalDate.now()
+                        .with(IsoFields.WEEK_BASED_YEAR, Long.parseLong(parts[0]))
+                        .with(IsoFields.WEEK_OF_WEEK_BASED_YEAR, Long.parseLong(parts[1]))
+                        .with(DayOfWeek.MONDAY);
+                yield new LocalDate[]{monday, monday.plusDays(6)};
+            }
+            case "MONTHLY" -> {
+                String[] parts = key.split("-");
+                LocalDate first = LocalDate.of(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]), 1);
+                yield new LocalDate[]{first, first.withDayOfMonth(first.lengthOfMonth())};
+            }
+            default -> { // DAILY
+                LocalDate date = LocalDate.parse(key);
+                yield new LocalDate[]{date, date};
+            }
+        };
+    }
+
+    private PerformanceResponse.Summary buildSummary(List<Position> positions) {
+        int maxWin = 0, maxLoss = 0, curWin = 0, curLoss = 0;
+        BigDecimal totalPnl = BigDecimal.ZERO;
+
+        for (Position p : positions) {
+            BigDecimal pnl = p.getRealizedPnl() != null ? p.getRealizedPnl() : BigDecimal.ZERO;
+            totalPnl = totalPnl.add(pnl);
+            if (pnl.compareTo(BigDecimal.ZERO) > 0) {
+                curWin++;
+                curLoss = 0;
+                maxWin = Math.max(maxWin, curWin);
+            } else {
+                curLoss++;
+                curWin = 0;
+                maxLoss = Math.max(maxLoss, curLoss);
+            }
+        }
+
+        return PerformanceResponse.Summary.builder()
+                .maxWinStreak(maxWin)
+                .maxLossStreak(maxLoss)
+                .totalPnl(totalPnl.setScale(2, RoundingMode.HALF_UP))
                 .build();
     }
 

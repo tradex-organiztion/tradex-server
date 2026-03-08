@@ -171,6 +171,25 @@ public interface PositionRepository extends JpaRepository<Position, Long> {
     Optional<Position> findByIdAndUserId(Long id, Long userId);
 
     /**
+     * 성과 곡선용: 기간·거래소 조건의 종료 포지션 (exitTime ASC, TradingJournal 미조회)
+     */
+    @Query("""
+        SELECT p FROM Position p
+        WHERE p.user.id = :userId
+          AND p.status = 'CLOSED'
+          AND (:exchangeName IS NULL OR p.exchangeName = :exchangeName)
+          AND (cast(:startDate as LocalDateTime) IS NULL OR p.exitTime >= :startDate)
+          AND (cast(:endDate as LocalDateTime) IS NULL OR p.exitTime <= :endDate)
+        ORDER BY p.exitTime ASC
+        """)
+    List<Position> findClosedForPerformance(
+            @Param("userId") Long userId,
+            @Param("exchangeName") ExchangeName exchangeName,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate
+    );
+
+    /**
      * 리스크 분석용: 기간·거래소 조건의 종료 포지션 + TradingJournal JOIN FETCH
      * OneToOne이므로 카테시안 곱 없이 단일 쿼리로 처리
      */
