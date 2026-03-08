@@ -92,15 +92,12 @@ solapi:
 
 app:
   oauth2:
-    redirect-uri: https://tradex.so/oauth2/redirect
-    allowed-redirect-uris:
-      - https://tradex.so
-      - https://dev.tradex.so
-      - http://localhost:3000
+    redirect-uri: ${app.oauth2.redirect-uri}
+    allowed-redirect-uris: ${app.oauth2.allowed-redirect-uris}
   cors:
-    allowed-origins: https://tradex.so,https://dev.tradex.so,http://localhost:3000
+    allowed-origins: ${app.cors.allowed-origins}
   password-reset:
-    base-url: https://tradex.so/reset-password
+    base-url: ${app.password-reset.base-url}
 
 encryption:
   secret-key: ${encryption.secret-key}
