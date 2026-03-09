@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -51,6 +52,7 @@ public class BinanceWebSocketClient implements ExchangeWebSocketClient {
 
     private ScheduledExecutorService reconnectExecutor;
     private ScheduledExecutorService keepAliveExecutor;
+    private ScheduledFuture<?> keepAliveFuture;
     private int reconnectAttempts = 0;
     private boolean shouldReconnect = true;
 
@@ -95,7 +97,9 @@ public class BinanceWebSocketClient implements ExchangeWebSocketClient {
     }
 
     private void startKeepAliveScheduler() {
-        keepAliveExecutor.scheduleAtFixedRate(() -> {
+        stopKeepAliveScheduler();
+        ensureKeepAliveExecutor();
+        keepAliveFuture = keepAliveExecutor.scheduleAtFixedRate(() -> {
             try {
                 binanceRestClient.keepAliveListenKey(exchangeApiKey);
             } catch (Exception e) {
@@ -104,9 +108,29 @@ public class BinanceWebSocketClient implements ExchangeWebSocketClient {
         }, 30, 30, TimeUnit.MINUTES);
     }
 
+    private void stopKeepAliveScheduler() {
+        if (keepAliveFuture != null && !keepAliveFuture.isDone()) {
+            keepAliveFuture.cancel(false);
+            keepAliveFuture = null;
+        }
+    }
+
+    private void ensureKeepAliveExecutor() {
+        if (keepAliveExecutor == null || keepAliveExecutor.isShutdown()) {
+            keepAliveExecutor = Executors.newSingleThreadScheduledExecutor();
+        }
+    }
+
+    private void ensureReconnectExecutor() {
+        if (reconnectExecutor == null || reconnectExecutor.isShutdown()) {
+            reconnectExecutor = Executors.newSingleThreadScheduledExecutor();
+        }
+    }
+
     @Override
     public void disconnect() {
         shouldReconnect = false;
+        stopKeepAliveScheduler();
         if (wsClient != null) {
             wsClient.close();
             isConnected = false;
@@ -141,6 +165,7 @@ public class BinanceWebSocketClient implements ExchangeWebSocketClient {
         log.info("[Binance] 재연결 시도 {}/{} 예약 - user: {}, {}ms 후",
                 reconnectAttempts, MAX_RECONNECT_ATTEMPTS, userId, delay);
 
+        ensureReconnectExecutor();
         reconnectExecutor.schedule(() -> {
             if (shouldReconnect && !isConnected()) {
                 connect();
