@@ -25,6 +25,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -53,6 +54,7 @@ public class BitgetWebSocketClient implements ExchangeWebSocketClient {
     private final ConcurrentHashMap<String, PositionSide> trackedPositions = new ConcurrentHashMap<>();
 
     private ScheduledExecutorService scheduledExecutor;
+    private ScheduledFuture<?> pingFuture;
     private int reconnectAttempts = 0;
     private boolean shouldReconnect = true;
 
@@ -87,6 +89,7 @@ public class BitgetWebSocketClient implements ExchangeWebSocketClient {
     @Override
     public void disconnect() {
         shouldReconnect = false;
+        stopPingScheduler();
         if (wsClient != null) {
             wsClient.close();
             isConnected = false;
@@ -99,6 +102,19 @@ public class BitgetWebSocketClient implements ExchangeWebSocketClient {
     private void shutdownExecutor() {
         if (scheduledExecutor != null && !scheduledExecutor.isShutdown()) {
             scheduledExecutor.shutdownNow();
+        }
+    }
+
+    private void stopPingScheduler() {
+        if (pingFuture != null && !pingFuture.isDone()) {
+            pingFuture.cancel(false);
+            pingFuture = null;
+        }
+    }
+
+    private void ensureExecutor() {
+        if (scheduledExecutor == null || scheduledExecutor.isShutdown()) {
+            scheduledExecutor = Executors.newScheduledThreadPool(2);
         }
     }
 
@@ -119,6 +135,7 @@ public class BitgetWebSocketClient implements ExchangeWebSocketClient {
         log.info("[Bitget] 재연결 시도 {}/{} 예약 - user: {}, {}ms 후",
                 reconnectAttempts, ExchangeWebSocketClient.MAX_RECONNECT_ATTEMPTS, userId, delay);
 
+        ensureExecutor();
         scheduledExecutor.schedule(() -> {
             if (shouldReconnect && !isConnected()) {
                 connect();
@@ -151,7 +168,8 @@ public class BitgetWebSocketClient implements ExchangeWebSocketClient {
     }
 
     private void startPingScheduler() {
-        scheduledExecutor.scheduleAtFixedRate(() -> {
+        stopPingScheduler();
+        pingFuture = scheduledExecutor.scheduleAtFixedRate(() -> {
             if (isConnected && wsClient != null && wsClient.isOpen()) {
                 wsClient.send("ping");
             }
@@ -551,6 +569,7 @@ public class BitgetWebSocketClient implements ExchangeWebSocketClient {
         public void onClose(int code, String reason, boolean remote) {
             isConnected = false;
             isAuthenticated = false;
+            stopPingScheduler();
             disconnectTime.compareAndSet(null, LocalDateTime.now());
             log.warn("[Bitget] WebSocket closed - user: {}, code: {}, reason: {}, remote: {}",
                     userId, code, reason, remote);
