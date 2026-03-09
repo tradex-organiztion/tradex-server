@@ -120,6 +120,30 @@ public interface PositionRepository extends JpaRepository<Position, Long> {
     Optional<Position> findOpenPosition(Long userId, ExchangeName exchangeName,
                                         String symbol, PositionSide side);
 
+    // AI Function Call - 필터 조건별 집계 통계 (건수, 승률, 손익 합계, 최대/최소)
+    @Query(value = "SELECT " +
+            "COUNT(*) as total_count, " +
+            "SUM(CASE WHEN realized_pnl > 0 THEN 1 ELSE 0 END) as win_count, " +
+            "SUM(CASE WHEN realized_pnl <= 0 THEN 1 ELSE 0 END) as loss_count, " +
+            "COALESCE(SUM(realized_pnl), 0) as total_pnl, " +
+            "COALESCE(AVG(realized_pnl), 0) as avg_pnl, " +
+            "COALESCE(MAX(realized_pnl), 0) as max_win, " +
+            "COALESCE(MIN(realized_pnl), 0) as max_loss " +
+            "FROM positions WHERE user_id = :userId AND status = 'CLOSED' " +
+            "AND (CAST(:symbol AS VARCHAR) IS NULL OR symbol = :symbol) " +
+            "AND (CAST(:side AS VARCHAR) IS NULL OR side = :side) " +
+            "AND (CAST(:exchangeName AS VARCHAR) IS NULL OR exchange_name = :exchangeName) " +
+            "AND (CAST(:startDate AS TIMESTAMP) IS NULL OR exit_time >= :startDate) " +
+            "AND (CAST(:endDate AS TIMESTAMP) IS NULL OR exit_time <= :endDate)",
+            nativeQuery = true)
+    Object[] getFilteredStats(
+            @Param("userId") Long userId,
+            @Param("symbol") String symbol,
+            @Param("side") String side,
+            @Param("exchangeName") String exchangeName,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate);
+
     List<Position> findByUserIdAndStatus(Long userId, PositionStatus status);
 
 

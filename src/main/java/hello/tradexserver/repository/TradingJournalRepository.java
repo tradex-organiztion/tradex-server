@@ -1,6 +1,8 @@
 package hello.tradexserver.repository;
 
 import hello.tradexserver.domain.TradingJournal;
+import hello.tradexserver.domain.enums.ExchangeName;
+import hello.tradexserver.domain.enums.PositionSide;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
@@ -8,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -50,14 +53,33 @@ public interface TradingJournalRepository extends JpaRepository<TradingJournal, 
             JOIN FETCH tj.position p
             LEFT JOIN FETCH tj.refinedJournal rj
             WHERE tj.user.id = :userId
-            AND (:symbol IS NULL OR p.symbol = :symbol)
-            AND (:startDate IS NULL OR p.exitTime >= :startDate)
             AND p.status = 'CLOSED'
-            ORDER BY p.exitTime DESC
+            AND (:symbol IS NULL OR p.symbol = :symbol)
+            AND (:side IS NULL OR p.side = :side)
+            AND (:exchangeName IS NULL OR p.exchangeName = :exchangeName)
+            AND (:startDate IS NULL OR p.exitTime >= :startDate)
+            AND (:endDate IS NULL OR p.exitTime <= :endDate)
+            AND (:minPnl IS NULL OR p.realizedPnl >= :minPnl)
+            AND (:maxPnl IS NULL OR p.realizedPnl <= :maxPnl)
+            AND (:pnlPositive = false OR p.realizedPnl > 0)
+            AND (:pnlNegative = false OR p.realizedPnl <= 0)
+            AND (:isEmotionalTrade IS NULL OR (rj IS NOT NULL AND rj.isEmotionalTrade = :isEmotionalTrade))
+            AND (:isUnplannedEntry IS NULL OR (rj IS NOT NULL AND rj.isUnplannedEntry = :isUnplannedEntry))
+            AND (:hasReview IS NULL OR :hasReview = false OR (tj.reviewContent IS NOT NULL AND tj.reviewContent <> ''))
             """)
     List<TradingJournal> searchJournals(
             @Param("userId") Long userId,
             @Param("symbol") String symbol,
+            @Param("side") PositionSide side,
+            @Param("exchangeName") ExchangeName exchangeName,
             @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate,
+            @Param("minPnl") BigDecimal minPnl,
+            @Param("maxPnl") BigDecimal maxPnl,
+            @Param("pnlPositive") boolean pnlPositive,
+            @Param("pnlNegative") boolean pnlNegative,
+            @Param("isEmotionalTrade") Boolean isEmotionalTrade,
+            @Param("isUnplannedEntry") Boolean isUnplannedEntry,
+            @Param("hasReview") Boolean hasReview,
             Pageable pageable);
 }

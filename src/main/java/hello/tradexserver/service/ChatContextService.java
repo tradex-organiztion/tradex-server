@@ -1,8 +1,12 @@
 package hello.tradexserver.service;
 
 import hello.tradexserver.domain.TradingJournal;
+import hello.tradexserver.domain.enums.ExchangeName;
+import hello.tradexserver.domain.enums.PositionSide;
 import hello.tradexserver.dto.chat.JournalSearchRequest;
 import hello.tradexserver.dto.chat.JournalSearchResponse;
+import hello.tradexserver.dto.chat.JournalStatsRequest;
+import hello.tradexserver.dto.chat.JournalStatsResponse;
 import hello.tradexserver.dto.response.risk.RiskAnalysisResponse;
 import hello.tradexserver.dto.response.strategy.StrategyAnalysisResponse;
 import hello.tradexserver.repository.PositionRepository;
@@ -11,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -50,7 +55,7 @@ public class ChatContextService {
         StringBuilder prompt = new StringBuilder();
         prompt.append("당신은 전문 트레이딩 코치입니다. 아래는 이 트레이더의 매매 데이터입니다.\n");
         prompt.append("이 데이터를 참고하여 개인화된 조언을 제공하세요.\n");
-        prompt.append("매매일지에 대한 구체적인 질문이 들어오면 searchTradingJournals 함수를 호출하여 관련 매매일지를 조회하세요.\n\n");
+        prompt.append("매매일지 상세 내용이 필요하면 searchTradingJournals 함수를, 집계/통계가 필요하면 getJournalStats 함수를 호출하세요.\n\n");
 
         buildSummarySection(prompt, summaryStats);
         buildClosedSummarySection(prompt, closedSummary);
@@ -62,35 +67,117 @@ public class ChatContextService {
     }
 
     public JournalSearchResponse searchJournals(Long userId, JournalSearchRequest request) {
-        log.info("[Function Call] searchTradingJournals 호출 - userId: {}, symbol: {}, startDate: {}",
-                userId, request.symbol(), request.startDate());
-        String symbol = request.symbol();
-        LocalDateTime startDate = null;
+        log.info("[Function Call] searchTradingJournals - userId: {}, symbol: {}, side: {}, exchange: {}, " +
+                        "startDate: {}, endDate: {}, minPnl: {}, maxPnl: {}, winOnly: {}, " +
+                        "isEmotionalTrade: {}, isUnplannedEntry: {}, hasReview: {}, sortBy: {}, limit: {}",
+                userId, request.symbol(), request.side(), request.exchangeName(),
+                request.startDate(), request.endDate(), request.minPnl(), request.maxPnl(), request.winOnly(),
+                request.isEmotionalTrade(), request.isUnplannedEntry(), request.hasReview(),
+                request.sortBy(), request.limit());
 
-        if (request.startDate() != null && !request.startDate().isBlank()) {
-            try {
-                startDate = LocalDate.parse(request.startDate()).atStartOfDay();
-            } catch (DateTimeParseException e) {
-                log.warn("Invalid startDate format: {}", request.startDate());
-            }
-        }
+        PositionSide side = parseEnum(PositionSide.class, request.side(), "side");
+        ExchangeName exchangeName = parseEnum(ExchangeName.class, request.exchangeName(), "exchangeName");
+        LocalDateTime startDate = parseDate(request.startDate(), "startDate", false);
+        LocalDateTime endDate = parseDate(request.endDate(), "endDate", true);
+        BigDecimal minPnl = request.minPnl() != null ? BigDecimal.valueOf(request.minPnl()) : null;
+        BigDecimal maxPnl = request.maxPnl() != null ? BigDecimal.valueOf(request.maxPnl()) : null;
+        boolean pnlPositive = Boolean.TRUE.equals(request.winOnly());
+        boolean pnlNegative = Boolean.FALSE.equals(request.winOnly());
+        int limit = Math.min(request.limit() != null && request.limit() > 0 ? request.limit() : 20, 50);
+
+        Sort sort = "pnl".equals(request.sortBy())
+                ? Sort.by(Sort.Direction.DESC, "position.realizedPnl")
+                : "entryTime".equals(request.sortBy())
+                ? Sort.by(Sort.Direction.DESC, "position.entryTime")
+                : Sort.by(Sort.Direction.DESC, "position.exitTime");
 
         List<TradingJournal> journals = tradingJournalRepository.searchJournals(
-                userId, symbol, startDate, PageRequest.of(0, 10));
+                userId, request.symbol(), side, exchangeName,
+                startDate, endDate, minPnl, maxPnl,
+                pnlPositive, pnlNegative,
+                request.isEmotionalTrade(), request.isUnplannedEntry(), request.hasReview(),
+                PageRequest.of(0, limit, sort));
 
         List<JournalSearchResponse.JournalSummary> summaries = journals.stream()
                 .map(tj -> new JournalSearchResponse.JournalSummary(
                         tj.getPosition().getSymbol(),
                         tj.getPosition().getSide() != null ? tj.getPosition().getSide().name() : null,
+                        tj.getPosition().getExchangeName() != null ? tj.getPosition().getExchangeName().name() : null,
+                        tj.getPosition().getLeverage(),
                         tj.getPosition().getRealizedPnl() != null ? tj.getPosition().getRealizedPnl().toPlainString() : "0",
+                        tj.getPosition().getEntryTime() != null ? tj.getPosition().getEntryTime().toString() : null,
                         tj.getPosition().getExitTime() != null ? tj.getPosition().getExitTime().toString() : null,
+                        tj.getIndicators(),
+                        tj.getTimeframes(),
                         tj.getEntryReason(),
                         tj.getReviewContent(),
-                        tj.getRefinedJournal() != null ? tj.getRefinedJournal().getRefinedText() : null
+                        tj.getRefinedJournal() != null ? tj.getRefinedJournal().getRefinedText() : null,
+                        tj.getRefinedJournal() != null ? tj.getRefinedJournal().getIsEmotionalTrade() : null,
+                        tj.getRefinedJournal() != null ? tj.getRefinedJournal().getIsUnplannedEntry() : null
                 ))
                 .collect(Collectors.toList());
 
-        return new JournalSearchResponse(summaries);
+        return new JournalSearchResponse(summaries.size(), summaries);
+    }
+
+    public JournalStatsResponse getJournalStats(Long userId, JournalStatsRequest request) {
+        log.info("[Function Call] getJournalStats - userId: {}, symbol: {}, side: {}, exchange: {}, startDate: {}, endDate: {}",
+                userId, request.symbol(), request.side(), request.exchangeName(), request.startDate(), request.endDate());
+
+        LocalDateTime startDate = parseDate(request.startDate(), "startDate", false);
+        LocalDateTime endDate = parseDate(request.endDate(), "endDate", true);
+
+        Object[] row = positionRepository.getFilteredStats(
+                userId, request.symbol(),
+                request.side() != null ? request.side().toUpperCase() : null,
+                request.exchangeName() != null ? request.exchangeName().toUpperCase() : null,
+                startDate, endDate);
+
+        if (row == null || row[0] == null) {
+            return new JournalStatsResponse(0, 0, 0, "0.00%", "0", "0", "0", "0");
+        }
+
+        int totalCount = ((Number) row[0]).intValue();
+        int winCount = row[1] != null ? ((Number) row[1]).intValue() : 0;
+        int lossCount = row[2] != null ? ((Number) row[2]).intValue() : 0;
+        BigDecimal totalPnl = row[3] != null ? new BigDecimal(row[3].toString()) : BigDecimal.ZERO;
+        BigDecimal avgPnl = row[4] != null ? new BigDecimal(row[4].toString()) : BigDecimal.ZERO;
+        BigDecimal maxWin = row[5] != null ? new BigDecimal(row[5].toString()) : BigDecimal.ZERO;
+        BigDecimal maxLoss = row[6] != null ? new BigDecimal(row[6].toString()) : BigDecimal.ZERO;
+
+        String winRate = totalCount > 0
+                ? BigDecimal.valueOf(winCount).divide(BigDecimal.valueOf(totalCount), 4, RoundingMode.HALF_UP)
+                        .multiply(BigDecimal.valueOf(100)).setScale(2, RoundingMode.HALF_UP) + "%"
+                : "0.00%";
+
+        return new JournalStatsResponse(
+                totalCount, winCount, lossCount, winRate,
+                totalPnl.setScale(2, RoundingMode.HALF_UP).toPlainString(),
+                avgPnl.setScale(2, RoundingMode.HALF_UP).toPlainString(),
+                maxWin.setScale(2, RoundingMode.HALF_UP).toPlainString(),
+                maxLoss.setScale(2, RoundingMode.HALF_UP).toPlainString()
+        );
+    }
+
+    private LocalDateTime parseDate(String dateStr, String fieldName, boolean endOfDay) {
+        if (dateStr == null || dateStr.isBlank()) return null;
+        try {
+            LocalDate date = LocalDate.parse(dateStr);
+            return endOfDay ? date.atTime(23, 59, 59) : date.atStartOfDay();
+        } catch (DateTimeParseException e) {
+            log.warn("Invalid {} format: {}", fieldName, dateStr);
+            return null;
+        }
+    }
+
+    private <T extends Enum<T>> T parseEnum(Class<T> enumClass, String value, String fieldName) {
+        if (value == null || value.isBlank()) return null;
+        try {
+            return Enum.valueOf(enumClass, value.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            log.warn("Invalid {} value: {}", fieldName, value);
+            return null;
+        }
     }
 
     private void buildSummarySection(StringBuilder prompt, Object[] stats) {

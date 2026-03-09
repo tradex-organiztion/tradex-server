@@ -4,6 +4,7 @@ import hello.tradexserver.domain.ChatMessage;
 import hello.tradexserver.domain.ChatSession;
 import hello.tradexserver.domain.User;
 import hello.tradexserver.dto.chat.JournalSearchRequest;
+import hello.tradexserver.dto.chat.JournalStatsRequest;
 import hello.tradexserver.dto.response.ChatHistoryResponse;
 import hello.tradexserver.dto.response.ChatSessionResponse;
 import hello.tradexserver.exception.AuthException;
@@ -124,17 +125,56 @@ public class ChatService {
                 // SystemMessage 주입 (개인화된 트레이딩 컨텍스트)
                 SystemMessage systemMessage = chatContextService.buildSystemMessage(userId);
 
-                // FunctionCallback 등록 (매매일지 검색)
+                // FunctionCallback 등록
                 FunctionCallbackWrapper<JournalSearchRequest, ?> journalCallback =
                         FunctionCallbackWrapper.builder(
                                         (JournalSearchRequest req) -> chatContextService.searchJournals(userId, req))
                                 .withName("searchTradingJournals")
-                                .withDescription("트레이더의 매매일지를 검색합니다. 특정 심볼이나 기간의 매매 상세 내역이 필요할 때 호출하세요.")
+                                .withDescription("""
+                                        트레이더의 매매일지 상세 목록을 검색합니다.
+                                        진입 이유, 복기 내용, 차트 패턴 등 개별 매매 내용을 분석할 때 사용하세요.
+
+                                        [파라미터 가이드]
+                                        - 결과가 너무 적어지지 않도록 핵심 조건 1~2개만 사용하세요.
+                                        - 내용 기반으로 AI가 직접 판단해야 할 경우 limit을 크게(30~50) 설정하세요.
+                                        - 집계/통계(승률, 합계 등)가 필요하면 getJournalStats를 대신 사용하세요.
+
+                                        [파라미터]
+                                        - symbol: 거래 심볼 (예: "BTCUSDT"). null이면 전체.
+                                        - side: "LONG" 또는 "SHORT". null이면 전체.
+                                        - exchangeName: 거래소 (예: "BINANCE", "BYBIT"). null이면 전체.
+                                        - startDate/endDate: 기간 필터 (yyyy-MM-dd). null이면 제한 없음.
+                                        - minPnl/maxPnl: 손익 범위 (USDT). null이면 제한 없음.
+                                        - winOnly: true=익절만, false=손절만, null=전체.
+                                        - isEmotionalTrade: true이면 감정적 매매만.
+                                        - isUnplannedEntry: true이면 비계획 진입만.
+                                        - hasReview: true이면 복기가 작성된 일지만.
+                                        - sortBy: "exitTime"(기본), "pnl", "entryTime".
+                                        - limit: 반환 건수 (기본 20, 최대 50).
+                                        """)
                                 .withInputType(JournalSearchRequest.class)
                                 .build();
 
+                FunctionCallbackWrapper<JournalStatsRequest, ?> statsCallback =
+                        FunctionCallbackWrapper.builder(
+                                        (JournalStatsRequest req) -> chatContextService.getJournalStats(userId, req))
+                                .withName("getJournalStats")
+                                .withDescription("""
+                                        조건별 매매 통계를 집계합니다.
+                                        "BTCUSDT 승률이 어때?", "이번 달 손익 합계는?" 같은 집계 질문에 사용하세요.
+                                        개별 일지 내용 없이 건수, 승률, 손익 합계/평균/최대/최소를 반환합니다.
+
+                                        [파라미터]
+                                        - symbol: 거래 심볼. null이면 전체.
+                                        - side: "LONG" 또는 "SHORT". null이면 전체.
+                                        - exchangeName: 거래소명. null이면 전체.
+                                        - startDate/endDate: 집계 기간 (yyyy-MM-dd).
+                                        """)
+                                .withInputType(JournalStatsRequest.class)
+                                .build();
+
                 OpenAiChatOptions options = new OpenAiChatOptions.Builder()
-                        .withFunctionCallbacks(List.of(journalCallback))
+                        .withFunctionCallbacks(List.of(journalCallback, statsCallback))
                         .build();
 
                 // 최종 프롬프트: [시스템 메시지, 메모리 메시지들... , 현재 질문]
