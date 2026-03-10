@@ -118,7 +118,7 @@ toss:
 
 aws:
   s3:
-    bucket-name: tradex-files-bucket
+    bucket-name: ${aws.s3.bucket-name}
     region: ap-northeast-2
     access-key: ${aws.s3.access-key}
     secret-key: ${aws.s3.secret-key}
