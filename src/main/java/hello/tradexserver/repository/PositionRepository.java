@@ -127,8 +127,8 @@ public interface PositionRepository extends JpaRepository<Position, Long> {
             "SUM(CASE WHEN realized_pnl <= 0 THEN 1 ELSE 0 END) as loss_count, " +
             "COALESCE(SUM(realized_pnl), 0) as total_pnl, " +
             "COALESCE(AVG(realized_pnl), 0) as avg_pnl, " +
-            "COALESCE(MAX(realized_pnl), 0) as max_win, " +
-            "COALESCE(MIN(realized_pnl), 0) as max_loss " +
+            "COALESCE(MAX(CASE WHEN realized_pnl > 0 THEN realized_pnl END), 0) as max_win, " +
+            "COALESCE(MIN(CASE WHEN realized_pnl <= 0 THEN realized_pnl END), 0) as max_loss " +
             "FROM positions WHERE user_id = :userId AND status = 'CLOSED' " +
             "AND (CAST(:symbol AS VARCHAR) IS NULL OR symbol = :symbol) " +
             "AND (CAST(:side AS VARCHAR) IS NULL OR side = :side) " +

@@ -79,10 +79,11 @@ public class ChatContextService {
         ExchangeName exchangeName = parseEnum(ExchangeName.class, request.exchangeName(), "exchangeName");
         LocalDateTime startDate = parseDate(request.startDate(), "startDate", false);
         LocalDateTime endDate = parseDate(request.endDate(), "endDate", true);
-        BigDecimal minPnl = request.minPnl() != null ? BigDecimal.valueOf(request.minPnl()) : null;
-        BigDecimal maxPnl = request.maxPnl() != null ? BigDecimal.valueOf(request.maxPnl()) : null;
+        // winOnly가 있으면 방향이 이미 결정되므로 PnL 범위는 무시 (충돌 방지)
         boolean pnlPositive = Boolean.TRUE.equals(request.winOnly());
         boolean pnlNegative = Boolean.FALSE.equals(request.winOnly());
+        BigDecimal minPnl = (!pnlPositive && !pnlNegative && request.minPnl() != null) ? BigDecimal.valueOf(request.minPnl()) : null;
+        BigDecimal maxPnl = (!pnlPositive && !pnlNegative && request.maxPnl() != null) ? BigDecimal.valueOf(request.maxPnl()) : null;
         int limit = Math.min(request.limit() != null && request.limit() > 0 ? request.limit() : 20, 50);
 
         Sort sort = "pnl".equals(request.sortBy())
@@ -90,6 +91,12 @@ public class ChatContextService {
                 : "entryTime".equals(request.sortBy())
                 ? Sort.by(Sort.Direction.DESC, "position.entryTime")
                 : Sort.by(Sort.Direction.DESC, "position.exitTime");
+
+        long totalCount = tradingJournalRepository.countJournals(
+                userId, request.symbol(), side, exchangeName,
+                startDate, endDate, minPnl, maxPnl,
+                pnlPositive, pnlNegative,
+                request.isEmotionalTrade(), request.isUnplannedEntry(), request.hasReview());
 
         List<TradingJournal> journals = tradingJournalRepository.searchJournals(
                 userId, request.symbol(), side, exchangeName,
@@ -117,7 +124,7 @@ public class ChatContextService {
                 ))
                 .collect(Collectors.toList());
 
-        return new JournalSearchResponse(summaries.size(), summaries);
+        return new JournalSearchResponse((int) totalCount, summaries);
     }
 
     public JournalStatsResponse getJournalStats(Long userId, JournalStatsRequest request) {
