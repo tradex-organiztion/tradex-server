@@ -23,10 +23,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
@@ -53,16 +50,16 @@ public class BitgetWebSocketClient implements ExchangeWebSocketClient {
     // snapshot 비교용: 현재 추적 중인 오픈 포지션 (key: "instId_holdSide", value: PositionSide)
     private final ConcurrentHashMap<String, PositionSide> trackedPositions = new ConcurrentHashMap<>();
 
-    private ScheduledExecutorService scheduledExecutor;
+    private final WebSocketScheduler scheduler;
     private ScheduledFuture<?> pingFuture;
     private int reconnectAttempts = 0;
     private boolean shouldReconnect = true;
 
-    public BitgetWebSocketClient(Long userId, ExchangeApiKey exchangeApiKey) {
+    public BitgetWebSocketClient(Long userId, ExchangeApiKey exchangeApiKey, WebSocketScheduler scheduler) {
         this.userId = userId;
         this.exchangeApiKey = exchangeApiKey;
         this.objectMapper = new ObjectMapper();
-        this.scheduledExecutor = Executors.newScheduledThreadPool(2);
+        this.scheduler = scheduler;
     }
 
     @Override
@@ -96,25 +93,21 @@ public class BitgetWebSocketClient implements ExchangeWebSocketClient {
             isAuthenticated = false;
             log.info("[Bitget] WebSocket disconnected for user: {}", userId);
         }
-        shutdownExecutor();
     }
 
-    private void shutdownExecutor() {
-        if (scheduledExecutor != null && !scheduledExecutor.isShutdown()) {
-            scheduledExecutor.shutdownNow();
-        }
+    private void startPingScheduler() {
+        stopPingScheduler();
+        pingFuture = scheduler.schedulePing(() -> {
+            if (isConnected && wsClient != null && wsClient.isOpen()) {
+                wsClient.send("ping");
+            }
+        }, 25);
     }
 
     private void stopPingScheduler() {
         if (pingFuture != null && !pingFuture.isDone()) {
             pingFuture.cancel(false);
             pingFuture = null;
-        }
-    }
-
-    private void ensureExecutor() {
-        if (scheduledExecutor == null || scheduledExecutor.isShutdown()) {
-            scheduledExecutor = Executors.newScheduledThreadPool(2);
         }
     }
 
@@ -135,12 +128,11 @@ public class BitgetWebSocketClient implements ExchangeWebSocketClient {
         log.info("[Bitget] 재연결 시도 {}/{} 예약 - user: {}, {}ms 후",
                 reconnectAttempts, ExchangeWebSocketClient.MAX_RECONNECT_ATTEMPTS, userId, delay);
 
-        ensureExecutor();
-        scheduledExecutor.schedule(() -> {
+        scheduler.scheduleReconnect(() -> {
             if (shouldReconnect && !isConnected()) {
                 connect();
             }
-        }, delay, TimeUnit.MILLISECONDS);
+        }, delay);
     }
 
     @Override
@@ -165,15 +157,6 @@ public class BitgetWebSocketClient implements ExchangeWebSocketClient {
         } catch (Exception e) {
             log.error("[Bitget] Error subscribing - user: {}", userId, e);
         }
-    }
-
-    private void startPingScheduler() {
-        stopPingScheduler();
-        pingFuture = scheduledExecutor.scheduleAtFixedRate(() -> {
-            if (isConnected && wsClient != null && wsClient.isOpen()) {
-                wsClient.send("ping");
-            }
-        }, 25, 25, TimeUnit.SECONDS);
     }
 
     // ================ 내부 WebSocket 클래스 ================

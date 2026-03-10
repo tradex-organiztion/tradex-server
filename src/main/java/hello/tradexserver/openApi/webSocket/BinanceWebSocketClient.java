@@ -19,10 +19,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
@@ -50,20 +47,18 @@ public class BinanceWebSocketClient implements ExchangeWebSocketClient {
     // Binance ORDER_TRADE_UPDATE의 n(수수료)은 이번 체결분만 → orderId별 누적 필요
     private final ConcurrentHashMap<Long, BigDecimal> orderFeeAccumulator = new ConcurrentHashMap<>();
 
-    private ScheduledExecutorService reconnectExecutor;
-    private ScheduledExecutorService keepAliveExecutor;
+    private final WebSocketScheduler scheduler;
     private ScheduledFuture<?> keepAliveFuture;
     private int reconnectAttempts = 0;
     private boolean shouldReconnect = true;
 
     public BinanceWebSocketClient(Long userId, ExchangeApiKey exchangeApiKey,
-                                   BinanceRestClient binanceRestClient) {
+                                   BinanceRestClient binanceRestClient, WebSocketScheduler scheduler) {
         this.userId = userId;
         this.exchangeApiKey = exchangeApiKey;
         this.binanceRestClient = binanceRestClient;
         this.objectMapper = new ObjectMapper();
-        this.reconnectExecutor = Executors.newSingleThreadScheduledExecutor();
-        this.keepAliveExecutor = Executors.newSingleThreadScheduledExecutor();
+        this.scheduler = scheduler;
     }
 
     @Override
@@ -98,32 +93,19 @@ public class BinanceWebSocketClient implements ExchangeWebSocketClient {
 
     private void startKeepAliveScheduler() {
         stopKeepAliveScheduler();
-        ensureKeepAliveExecutor();
-        keepAliveFuture = keepAliveExecutor.scheduleAtFixedRate(() -> {
+        keepAliveFuture = scheduler.scheduleHeavyTask(() -> {
             try {
                 binanceRestClient.keepAliveListenKey(exchangeApiKey);
             } catch (Exception e) {
                 log.error("[Binance] ListenKey 연장 실패 - user: {}", userId, e);
             }
-        }, 30, 30, TimeUnit.MINUTES);
+        }, 30, 30);
     }
 
     private void stopKeepAliveScheduler() {
         if (keepAliveFuture != null && !keepAliveFuture.isDone()) {
             keepAliveFuture.cancel(false);
             keepAliveFuture = null;
-        }
-    }
-
-    private void ensureKeepAliveExecutor() {
-        if (keepAliveExecutor == null || keepAliveExecutor.isShutdown()) {
-            keepAliveExecutor = Executors.newSingleThreadScheduledExecutor();
-        }
-    }
-
-    private void ensureReconnectExecutor() {
-        if (reconnectExecutor == null || reconnectExecutor.isShutdown()) {
-            reconnectExecutor = Executors.newSingleThreadScheduledExecutor();
         }
     }
 
@@ -136,17 +118,7 @@ public class BinanceWebSocketClient implements ExchangeWebSocketClient {
             isConnected = false;
             log.info("[Binance] WebSocket 연결 해제 - user: {}", userId);
         }
-        shutdownExecutors();
         orderFeeAccumulator.clear();
-    }
-
-    private void shutdownExecutors() {
-        if (reconnectExecutor != null && !reconnectExecutor.isShutdown()) {
-            reconnectExecutor.shutdownNow();
-        }
-        if (keepAliveExecutor != null && !keepAliveExecutor.isShutdown()) {
-            keepAliveExecutor.shutdownNow();
-        }
     }
 
     private void scheduleReconnect() {
@@ -165,12 +137,11 @@ public class BinanceWebSocketClient implements ExchangeWebSocketClient {
         log.info("[Binance] 재연결 시도 {}/{} 예약 - user: {}, {}ms 후",
                 reconnectAttempts, MAX_RECONNECT_ATTEMPTS, userId, delay);
 
-        ensureReconnectExecutor();
-        reconnectExecutor.schedule(() -> {
+        scheduler.scheduleReconnect(() -> {
             if (shouldReconnect && !isConnected()) {
                 connect();
             }
-        }, delay, TimeUnit.MILLISECONDS);
+        }, delay);
     }
 
     @Override

@@ -21,10 +21,7 @@ import java.net.URISyntaxException;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
@@ -48,18 +45,18 @@ public class BybitWebSocketClient implements ExchangeWebSocketClient {
     // 끊긴 시간 추적 - 재연결 시 Gap 보완에 사용
     private final AtomicReference<LocalDateTime> disconnectTime = new AtomicReference<>(null);
 
-    private ScheduledExecutorService scheduledExecutor;
+    private final WebSocketScheduler scheduler;
     private ScheduledFuture<?> pingFuture;
     private int reconnectAttempts = 0;
     private boolean shouldReconnect = true;
 
-    public BybitWebSocketClient(Long userId, ExchangeApiKey exchangeApiKey) {
+    public BybitWebSocketClient(Long userId, ExchangeApiKey exchangeApiKey, WebSocketScheduler scheduler) {
         this.userId = userId;
         this.exchangeApiKey = exchangeApiKey;
         this.apiKey = exchangeApiKey.getApiKey();
         this.apiSecret = exchangeApiKey.getApiSecret();
         this.objectMapper = new ObjectMapper();
-        this.scheduledExecutor = Executors.newScheduledThreadPool(2);
+        this.scheduler = scheduler;
     }
 
     @Override
@@ -93,34 +90,21 @@ public class BybitWebSocketClient implements ExchangeWebSocketClient {
             isAuthenticated = false;
             log.info("[Bybit] WebSocket disconnected for user: {}", userId);
         }
-        shutdownExecutor();
-    }
-
-    private void shutdownExecutor() {
-        if (scheduledExecutor != null && !scheduledExecutor.isShutdown()) {
-            scheduledExecutor.shutdownNow();
-        }
     }
 
     private void startPingScheduler() {
         stopPingScheduler();
-        pingFuture = scheduledExecutor.scheduleAtFixedRate(() -> {
+        pingFuture = scheduler.schedulePing(() -> {
             if (isConnected && wsClient != null && wsClient.isOpen()) {
                 wsClient.send("{\"op\":\"ping\"}");
             }
-        }, 20, 20, TimeUnit.SECONDS);
+        }, 20);
     }
 
     private void stopPingScheduler() {
         if (pingFuture != null && !pingFuture.isDone()) {
             pingFuture.cancel(false);
             pingFuture = null;
-        }
-    }
-
-    private void ensureExecutor() {
-        if (scheduledExecutor == null || scheduledExecutor.isShutdown()) {
-            scheduledExecutor = Executors.newScheduledThreadPool(2);
         }
     }
 
@@ -141,12 +125,11 @@ public class BybitWebSocketClient implements ExchangeWebSocketClient {
         log.debug("[Bybit] 재연결 시도 {}/{} 예약 - user: {}, {}ms 후",
                 reconnectAttempts, ExchangeWebSocketClient.MAX_RECONNECT_ATTEMPTS, userId, delay);
 
-        ensureExecutor();
-        scheduledExecutor.schedule(() -> {
+        scheduler.scheduleReconnect(() -> {
             if (shouldReconnect && !isConnected()) {
                 connect();
             }
-        }, delay, TimeUnit.MILLISECONDS);
+        }, delay);
     }
 
     @Override
