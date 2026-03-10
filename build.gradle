@@ -28,6 +28,7 @@ repositories {
 dependencyManagement {
     imports {
         mavenBom "org.springframework.ai:spring-ai-bom:1.0.0-M4"
+        mavenBom "io.awspring.cloud:spring-cloud-aws-dependencies:3.4.0"
     }
 }
 
@@ -103,6 +104,9 @@ dependencies {
 
     // AWS S3
     implementation 'software.amazon.awssdk:s3:2.29.52'
+
+    // AWS Parameter Store
+    implementation 'io.awspring.cloud:spring-cloud-aws-starter-parameter-store'
 }
 
 tasks.named('test') {

@@ -37,5 +37,10 @@ out/
 .vscode/
 
 ### Application config ###
-src/main/resources/application.yml
 src/main/resources/application-*.yml
+
+### MacOS ###
+.DS_Store
+
+### OMC ###
+.omc/
