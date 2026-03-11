@@ -17,6 +17,7 @@ import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -66,6 +67,7 @@ public class ChatContextService {
         return new SystemMessage(prompt.toString());
     }
 
+    @Transactional(readOnly = true)
     public JournalSearchResponse searchJournals(Long userId, JournalSearchRequest request) {
         log.info("[Function Call] searchTradingJournals - userId: {}, symbol: {}, side: {}, exchange: {}, " +
                         "startDate: {}, endDate: {}, minPnl: {}, maxPnl: {}, winOnly: {}, " +
