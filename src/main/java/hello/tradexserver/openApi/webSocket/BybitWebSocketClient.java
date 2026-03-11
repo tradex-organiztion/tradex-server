@@ -93,8 +93,13 @@ public class BybitWebSocketClient implements ExchangeWebSocketClient {
     private void startPingScheduler() {
         stopPingScheduler();
         pingFuture = scheduler.schedulePing(() -> {
-            if (isConnected && wsClient != null && wsClient.isOpen()) {
-                wsClient.send("{\"op\":\"ping\"}");
+            try {
+                if (isConnected && wsClient != null && wsClient.isOpen()) {
+                    wsClient.send("{\"op\":\"ping\"}");
+                }
+            } catch (Exception e) {
+                log.error("[Bybit] ping 전송 실패 - user: {}, 재연결 시도", userId, e);
+                wsClient.close();
             }
         }, 20);
     }
