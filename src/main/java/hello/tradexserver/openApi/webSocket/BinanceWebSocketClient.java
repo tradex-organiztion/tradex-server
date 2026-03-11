@@ -20,6 +20,7 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
@@ -34,7 +35,7 @@ public class BinanceWebSocketClient implements ExchangeWebSocketClient {
     private final ObjectMapper objectMapper;
 
     private WebSocketClient wsClient;
-    private boolean isConnected = false;
+    private volatile boolean isConnected = false;
     private PositionListener positionListener;
     private OrderListener orderListener;
     private String listenKey;
@@ -48,8 +49,8 @@ public class BinanceWebSocketClient implements ExchangeWebSocketClient {
     private final WebSocketScheduler scheduler;
     private ScheduledFuture<?> keepAliveFuture;
     private ScheduledFuture<?> reconnectFuture;
-    private int reconnectAttempts = 0;
-    private boolean shouldReconnect = true;
+    private final AtomicInteger reconnectAttempts = new AtomicInteger(0);
+    private volatile boolean shouldReconnect = true;
 
     public BinanceWebSocketClient(Long userId, ExchangeApiKey exchangeApiKey,
                                    BinanceRestClient binanceRestClient, WebSocketScheduler scheduler) {
@@ -90,7 +91,7 @@ public class BinanceWebSocketClient implements ExchangeWebSocketClient {
         }
     }
 
-    private void startKeepAliveScheduler() {
+    private synchronized void startKeepAliveScheduler() {
         stopKeepAliveScheduler();
         keepAliveFuture = scheduler.scheduleHeavyTask(() -> {
             try {
@@ -101,7 +102,7 @@ public class BinanceWebSocketClient implements ExchangeWebSocketClient {
         }, 30, 30);
     }
 
-    private void stopKeepAliveScheduler() {
+    private synchronized void stopKeepAliveScheduler() {
         if (keepAliveFuture != null && !keepAliveFuture.isDone()) {
             keepAliveFuture.cancel(false);
             keepAliveFuture = null;
@@ -124,9 +125,9 @@ public class BinanceWebSocketClient implements ExchangeWebSocketClient {
         orderFeeAccumulator.clear();
     }
 
-    private void scheduleReconnect() {
+    private synchronized void scheduleReconnect() {
         if (!shouldReconnect) return;
-        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+        if (reconnectAttempts.get() >= MAX_RECONNECT_ATTEMPTS) {
             log.error("[Binance] 최대 재연결 시도 횟수({}) 도달 - user: {}", MAX_RECONNECT_ATTEMPTS, userId);
             return;
         }
@@ -135,13 +136,13 @@ public class BinanceWebSocketClient implements ExchangeWebSocketClient {
             return;
         }
 
-        long delay = reconnectAttempts >= 6
+        int attempts = reconnectAttempts.getAndIncrement();
+        long delay = attempts >= 6
                 ? MAX_RECONNECT_DELAY_MS
-                : INITIAL_RECONNECT_DELAY_MS * (1L << reconnectAttempts);
-        reconnectAttempts++;
+                : INITIAL_RECONNECT_DELAY_MS * (1L << attempts);
 
         log.info("[Binance] 재연결 시도 {}/{} 예약 - user: {}, {}ms 후",
-                reconnectAttempts, MAX_RECONNECT_ATTEMPTS, userId, delay);
+                attempts + 1, MAX_RECONNECT_ATTEMPTS, userId, delay);
 
         reconnectFuture = scheduler.scheduleReconnect(() -> {
             if (shouldReconnect && !isConnected()) {
@@ -170,7 +171,7 @@ public class BinanceWebSocketClient implements ExchangeWebSocketClient {
         @Override
         public void onOpen(ServerHandshake handshakedata) {
             isConnected = true;
-            reconnectAttempts = 0;
+            reconnectAttempts.set(0);
             log.info("[Binance] WebSocket 연결 성공 - user: {}", userId);
             subscribePosition();
 

@@ -22,6 +22,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
@@ -35,8 +36,8 @@ public class BybitWebSocketClient implements ExchangeWebSocketClient {
     private String apiSecret;
     private WebSocketClient wsClient;
     private ObjectMapper objectMapper;
-    private boolean isConnected = false;
-    private boolean isAuthenticated = false;
+    private volatile boolean isConnected = false;
+    private volatile boolean isAuthenticated = false;
     private PositionListener positionListener;
     private OrderListener orderListener;
 
@@ -45,8 +46,8 @@ public class BybitWebSocketClient implements ExchangeWebSocketClient {
 
     private final WebSocketScheduler scheduler;
     private ScheduledFuture<?> pingFuture;
-    private int reconnectAttempts = 0;
-    private boolean shouldReconnect = true;
+    private final AtomicInteger reconnectAttempts = new AtomicInteger(0);
+    private volatile boolean shouldReconnect = true;
 
     public BybitWebSocketClient(Long userId, ExchangeApiKey exchangeApiKey, WebSocketScheduler scheduler) {
         this.userId = userId;
@@ -90,7 +91,7 @@ public class BybitWebSocketClient implements ExchangeWebSocketClient {
         }
     }
 
-    private void startPingScheduler() {
+    private synchronized void startPingScheduler() {
         stopPingScheduler();
         pingFuture = scheduler.schedulePing(() -> {
             try {
@@ -104,7 +105,7 @@ public class BybitWebSocketClient implements ExchangeWebSocketClient {
         }, 20);
     }
 
-    private void stopPingScheduler() {
+    private synchronized void stopPingScheduler() {
         if (pingFuture != null && !pingFuture.isDone()) {
             pingFuture.cancel(false);
             pingFuture = null;
@@ -113,19 +114,19 @@ public class BybitWebSocketClient implements ExchangeWebSocketClient {
 
     private void scheduleReconnect() {
         if (!shouldReconnect) return;
-        if (reconnectAttempts >= ExchangeWebSocketClient.MAX_RECONNECT_ATTEMPTS) {
+        if (reconnectAttempts.get() >= ExchangeWebSocketClient.MAX_RECONNECT_ATTEMPTS) {
             log.error("[Bybit] 최대 재연결 시도 횟수({}) 도달 - user: {}",
                     ExchangeWebSocketClient.MAX_RECONNECT_ATTEMPTS, userId);
             return;
         }
 
-        long delay = reconnectAttempts >= 6
+        int attempts = reconnectAttempts.getAndIncrement();
+        long delay = attempts >= 6
                 ? ExchangeWebSocketClient.MAX_RECONNECT_DELAY_MS
-                : ExchangeWebSocketClient.INITIAL_RECONNECT_DELAY_MS * (1L << reconnectAttempts);
-        reconnectAttempts++;
+                : ExchangeWebSocketClient.INITIAL_RECONNECT_DELAY_MS * (1L << attempts);
 
         log.debug("[Bybit] 재연결 시도 {}/{} 예약 - user: {}, {}ms 후",
-                reconnectAttempts, ExchangeWebSocketClient.MAX_RECONNECT_ATTEMPTS, userId, delay);
+                attempts + 1, ExchangeWebSocketClient.MAX_RECONNECT_ATTEMPTS, userId, delay);
 
         scheduler.scheduleReconnect(() -> {
             if (shouldReconnect && !isConnected()) {
@@ -174,7 +175,7 @@ public class BybitWebSocketClient implements ExchangeWebSocketClient {
         @Override
         public void onOpen(ServerHandshake handshakedata) {
             isConnected = true;
-            reconnectAttempts = 0;
+            reconnectAttempts.set(0);
             log.debug("[Bybit] WebSocket opened for user: {}", userId);
             startPingScheduler();
             sendAuthMessage();
