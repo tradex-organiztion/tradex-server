@@ -45,6 +45,7 @@ public class BinanceWebSocketClient implements ExchangeWebSocketClient {
 
     private final WebSocketScheduler scheduler;
     private ScheduledFuture<?> keepAliveFuture;
+    private ScheduledFuture<?> reconnectFuture;
     private int reconnectAttempts = 0;
     private boolean shouldReconnect = true;
 
@@ -111,6 +112,10 @@ public class BinanceWebSocketClient implements ExchangeWebSocketClient {
     public void disconnect() {
         shouldReconnect = false;
         stopKeepAliveScheduler();
+        if (reconnectFuture != null && !reconnectFuture.isDone()) {
+            reconnectFuture.cancel(false);
+            reconnectFuture = null;
+        }
         if (wsClient != null) {
             wsClient.close();
             isConnected = false;
@@ -126,16 +131,19 @@ public class BinanceWebSocketClient implements ExchangeWebSocketClient {
             return;
         }
 
-        long delay = Math.min(
-                INITIAL_RECONNECT_DELAY_MS * (1L << reconnectAttempts),
-                MAX_RECONNECT_DELAY_MS
-        );
+        if (reconnectFuture != null && !reconnectFuture.isDone()) {
+            return;
+        }
+
+        long delay = reconnectAttempts >= 6
+                ? MAX_RECONNECT_DELAY_MS
+                : INITIAL_RECONNECT_DELAY_MS * (1L << reconnectAttempts);
         reconnectAttempts++;
 
         log.info("[Binance] 재연결 시도 {}/{} 예약 - user: {}, {}ms 후",
                 reconnectAttempts, MAX_RECONNECT_ATTEMPTS, userId, delay);
 
-        scheduler.scheduleReconnect(() -> {
+        reconnectFuture = scheduler.scheduleReconnect(() -> {
             if (shouldReconnect && !isConnected()) {
                 connect();
             }

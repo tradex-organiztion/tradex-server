@@ -119,10 +119,9 @@ public class BybitWebSocketClient implements ExchangeWebSocketClient {
             return;
         }
 
-        long delay = Math.min(
-                ExchangeWebSocketClient.INITIAL_RECONNECT_DELAY_MS * (1L << reconnectAttempts),
-                ExchangeWebSocketClient.MAX_RECONNECT_DELAY_MS
-        );
+        long delay = reconnectAttempts >= 6
+                ? ExchangeWebSocketClient.MAX_RECONNECT_DELAY_MS
+                : ExchangeWebSocketClient.INITIAL_RECONNECT_DELAY_MS * (1L << reconnectAttempts);
         reconnectAttempts++;
 
         log.debug("[Bybit] 재연결 시도 {}/{} 예약 - user: {}, {}ms 후",
