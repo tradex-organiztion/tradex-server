@@ -25,11 +25,7 @@ import java.util.concurrent.atomic.AtomicReference;
 @Slf4j
 public class BinanceWebSocketClient implements ExchangeWebSocketClient {
 
-    // Testnet WebSocket
-    // private static final String WSS_BASE_URL = "wss://fstream.binancefuture.com";
-    // Live WebSocket
-    private static final String WSS_BASE_URL = "wss://fstream.binance.com";
-
+    private final String wssBaseUrl;
     private final Long userId;
     private final ExchangeApiKey exchangeApiKey;
     private final BinanceRestClient binanceRestClient;
@@ -53,12 +49,14 @@ public class BinanceWebSocketClient implements ExchangeWebSocketClient {
     private boolean shouldReconnect = true;
 
     public BinanceWebSocketClient(Long userId, ExchangeApiKey exchangeApiKey,
-                                   BinanceRestClient binanceRestClient, WebSocketScheduler scheduler) {
+                                   BinanceRestClient binanceRestClient,
+                                   WebSocketScheduler scheduler, String wssBaseUrl) {
         this.userId = userId;
         this.exchangeApiKey = exchangeApiKey;
         this.binanceRestClient = binanceRestClient;
         this.objectMapper = new ObjectMapper();
         this.scheduler = scheduler;
+        this.wssBaseUrl = wssBaseUrl;
     }
 
     @Override
@@ -80,7 +78,7 @@ public class BinanceWebSocketClient implements ExchangeWebSocketClient {
                 return;
             }
 
-            String wssUrl = WSS_BASE_URL + "/ws/" + listenKey;
+            String wssUrl = wssBaseUrl + "/ws/" + listenKey;
             wsClient = new BinanceWebSocketImpl(new URI(wssUrl));
             wsClient.connect();
             log.info("[Binance] WebSocket 연결 시도 - user: {}", userId);
