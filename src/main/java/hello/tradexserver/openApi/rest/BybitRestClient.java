@@ -1,12 +1,12 @@
 package hello.tradexserver.openApi.rest;
 
-import hello.tradexserver.config.ExchangeProperties;
 import hello.tradexserver.openApi.rest.dto.BybitClosedPnlResponse;
 import hello.tradexserver.openApi.rest.dto.CoinBalanceDto;
 import hello.tradexserver.openApi.rest.dto.WalletBalanceResponse;
 import hello.tradexserver.domain.ExchangeApiKey;
 import hello.tradexserver.openApi.rest.dto.*;
 import hello.tradexserver.openApi.util.BybitSignatureUtil;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -24,15 +24,13 @@ import java.util.Map;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class BybitRestClient implements ExchangeRestClient {
 
     private final RestTemplate restTemplate;
-    private final String baseUrl;
 
-    public BybitRestClient(RestTemplate restTemplate, ExchangeProperties exchangeProperties) {
-        this.restTemplate = restTemplate;
-        this.baseUrl = exchangeProperties.getBybit().getRestBaseUrl();
-    }
+    // private static final String BASE_URL = "https://api-demo.bybit.com/v5";
+    private static final String BASE_URL = "https://api.bybit.com/v5";
 
     @Override
     public boolean validateApiKey(ExchangeApiKey apiKey) {
@@ -40,7 +38,7 @@ public class BybitRestClient implements ExchangeRestClient {
         try {
             HttpEntity<String> entity = new HttpEntity<>(createSignedHeaders(apiKey, queryString));
             ResponseEntity<Map> response = restTemplate.exchange(
-                    baseUrl + "/user/query-api",
+                    BASE_URL + "/user/query-api",
                     HttpMethod.GET, entity, Map.class);
 
             Map<String, Object> body = response.getBody();
@@ -65,7 +63,7 @@ public class BybitRestClient implements ExchangeRestClient {
         try {
             HttpEntity<String> entity = new HttpEntity<>(createSignedHeaders(apiKey, queryString));
             ResponseEntity<BybitOrderHistoryResponse> response = restTemplate.exchange(
-                    baseUrl + "/order/history?" + queryString,
+                    BASE_URL + "/order/history?" + queryString,
                     HttpMethod.GET, entity, BybitOrderHistoryResponse.class
             );
             BybitOrderHistoryResponse body = response.getBody();
@@ -90,7 +88,7 @@ public class BybitRestClient implements ExchangeRestClient {
         try {
             HttpEntity<String> entity = new HttpEntity<>(createSignedHeaders(apiKey, queryString));
             ResponseEntity<BybitPositionListResponse> response = restTemplate.exchange(
-                    baseUrl + "/position/list?" + queryString,
+                    BASE_URL + "/position/list?" + queryString,
                     HttpMethod.GET, entity, BybitPositionListResponse.class
             );
             BybitPositionListResponse body = response.getBody();
@@ -131,7 +129,7 @@ public class BybitRestClient implements ExchangeRestClient {
             HttpEntity<String> entity = new HttpEntity<>(createSignedHeaders(apiKey, queryString));
 
             ResponseEntity<Map> responseEntity = restTemplate.exchange(
-                    baseUrl + "/account/wallet-balance?" + queryString,
+                    BASE_URL + "/account/wallet-balance?" + queryString,
                     HttpMethod.GET,
                     entity,
                     Map.class
@@ -225,7 +223,7 @@ public class BybitRestClient implements ExchangeRestClient {
         try {
             HttpEntity<String> entity = new HttpEntity<>(createSignedHeaders(apiKey, queryString));
             ResponseEntity<BybitClosedPnlResponse> response = restTemplate.exchange(
-                    baseUrl + "/position/closed-pnl?" + queryString,
+                    BASE_URL + "/position/closed-pnl?" + queryString,
                     HttpMethod.GET, entity, BybitClosedPnlResponse.class
             );
             BybitClosedPnlResponse body = response.getBody();

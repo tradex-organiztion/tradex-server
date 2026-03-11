@@ -1,8 +1,8 @@
 package hello.tradexserver.openApi.webSocket;
 
-import hello.tradexserver.config.ExchangeProperties;
 import hello.tradexserver.domain.ExchangeApiKey;
 import hello.tradexserver.openApi.rest.BinanceRestClient;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -11,6 +11,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class ExchangeWebSocketManager {
 
     private final Map<String, ExchangeWebSocketClient> activeConnections = new ConcurrentHashMap<>();
@@ -19,19 +20,6 @@ public class ExchangeWebSocketManager {
     private final WebSocketScheduler webSocketScheduler;
     private final PositionListener positionListener;
     private final OrderListener orderListener;
-    private final ExchangeProperties exchangeProperties;
-
-    public ExchangeWebSocketManager(BinanceRestClient binanceRestClient,
-                                     WebSocketScheduler webSocketScheduler,
-                                     PositionListener positionListener,
-                                     OrderListener orderListener,
-                                     ExchangeProperties exchangeProperties) {
-        this.binanceRestClient = binanceRestClient;
-        this.webSocketScheduler = webSocketScheduler;
-        this.positionListener = positionListener;
-        this.orderListener = orderListener;
-        this.exchangeProperties = exchangeProperties;
-    }
 
     public void connectUser(Long userId, ExchangeApiKey apiKey) {
         String webSocketKey = generateWebSocketKey(userId, apiKey.getExchangeName().name());
@@ -86,18 +74,15 @@ public class ExchangeWebSocketManager {
         String exchange = apiKey.getExchangeName().name();
 
         if ("BYBIT".equalsIgnoreCase(exchange)) {
-            return new BybitWebSocketClient(userId, apiKey, webSocketScheduler,
-                    exchangeProperties.getBybit().getWsBaseUrl());
+            return new BybitWebSocketClient(userId, apiKey, webSocketScheduler);
         }
 
         if ("BINANCE".equalsIgnoreCase(exchange)) {
-            return new BinanceWebSocketClient(userId, apiKey, binanceRestClient,
-                    webSocketScheduler, exchangeProperties.getBinance().getWsBaseUrl());
+            return new BinanceWebSocketClient(userId, apiKey, binanceRestClient, webSocketScheduler);
         }
 
         if ("BITGET".equalsIgnoreCase(exchange)) {
-            return new BitgetWebSocketClient(userId, apiKey, webSocketScheduler,
-                    exchangeProperties.getBitget().getWsBaseUrl());
+            return new BitgetWebSocketClient(userId, apiKey, webSocketScheduler);
         }
 
         throw new IllegalArgumentException("Unsupported exchange: " + exchange);

@@ -29,7 +29,9 @@ import java.util.concurrent.atomic.AtomicReference;
 @Slf4j
 public class BitgetWebSocketClient implements ExchangeWebSocketClient {
 
-    private final String wssUrl;
+    // private static final String WSS_URL = "wss://wspap.bitget.com/v2/ws/private";
+    private static final String WSS_URL = "wss://ws.bitget.com/v2/ws/private";
+
     private final Long userId;
     private final ExchangeApiKey exchangeApiKey;
     private final ObjectMapper objectMapper;
@@ -51,13 +53,11 @@ public class BitgetWebSocketClient implements ExchangeWebSocketClient {
     private int reconnectAttempts = 0;
     private boolean shouldReconnect = true;
 
-    public BitgetWebSocketClient(Long userId, ExchangeApiKey exchangeApiKey,
-                                 WebSocketScheduler scheduler, String wssUrl) {
+    public BitgetWebSocketClient(Long userId, ExchangeApiKey exchangeApiKey, WebSocketScheduler scheduler) {
         this.userId = userId;
         this.exchangeApiKey = exchangeApiKey;
         this.objectMapper = new ObjectMapper();
         this.scheduler = scheduler;
-        this.wssUrl = wssUrl;
     }
 
     @Override
@@ -73,7 +73,7 @@ public class BitgetWebSocketClient implements ExchangeWebSocketClient {
     @Override
     public void connect() {
         try {
-            wsClient = new BitgetWebSocketImpl(new URI(wssUrl));
+            wsClient = new BitgetWebSocketImpl(new URI(WSS_URL));
             wsClient.connect();
             log.info("[Bitget] WebSocket connecting for user: {}", userId);
         } catch (URISyntaxException e) {

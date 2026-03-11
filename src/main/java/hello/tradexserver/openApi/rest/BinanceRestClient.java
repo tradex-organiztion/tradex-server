@@ -2,13 +2,13 @@ package hello.tradexserver.openApi.rest;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import hello.tradexserver.config.ExchangeProperties;
 import hello.tradexserver.domain.ExchangeApiKey;
 import hello.tradexserver.openApi.rest.dto.BinanceAllOrderItem;
 import hello.tradexserver.openApi.rest.dto.BinancePositionRisk;
 import hello.tradexserver.openApi.rest.dto.BinanceUserTrade;
 import hello.tradexserver.openApi.rest.dto.WalletBalanceResponse;
 import hello.tradexserver.openApi.util.BinanceSignatureUtil;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -22,18 +22,14 @@ import java.util.List;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class BinanceRestClient implements ExchangeRestClient {
 
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
-    private final String baseUrl;
 
-    public BinanceRestClient(RestTemplate restTemplate, ObjectMapper objectMapper,
-                             ExchangeProperties exchangeProperties) {
-        this.restTemplate = restTemplate;
-        this.objectMapper = objectMapper;
-        this.baseUrl = exchangeProperties.getBinance().getRestBaseUrl();
-    }
+    // private static final String BASE_URL = "https://testnet.binancefuture.com";
+    private static final String BASE_URL = "https://fapi.binance.com";
 
     @Override
     public boolean validateApiKey(ExchangeApiKey apiKey) {
@@ -45,7 +41,7 @@ public class BinanceRestClient implements ExchangeRestClient {
 
             HttpEntity<String> entity = new HttpEntity<>(createApiKeyHeader(apiKey));
             ResponseEntity<String> response = restTemplate.exchange(
-                    baseUrl + "/fapi/v3/balance?" + queryString,
+                    BASE_URL + "/fapi/v3/balance?" + queryString,
                     HttpMethod.GET, entity, String.class);
 
             return response.getStatusCode().is2xxSuccessful();
@@ -62,7 +58,7 @@ public class BinanceRestClient implements ExchangeRestClient {
         try {
             HttpEntity<String> entity = new HttpEntity<>(createApiKeyHeader(apiKey));
             ResponseEntity<String> response = restTemplate.exchange(
-                    baseUrl + "/fapi/v1/listenKey", HttpMethod.POST, entity, String.class);
+                    BASE_URL + "/fapi/v1/listenKey", HttpMethod.POST, entity, String.class);
 
             String body = response.getBody();
             if (body != null && body.contains("listenKey")) {
@@ -86,7 +82,7 @@ public class BinanceRestClient implements ExchangeRestClient {
         try {
             HttpEntity<String> entity = new HttpEntity<>(createApiKeyHeader(apiKey));
             restTemplate.exchange(
-                    baseUrl + "/fapi/v1/listenKey", HttpMethod.PUT, entity, String.class);
+                    BASE_URL + "/fapi/v1/listenKey", HttpMethod.PUT, entity, String.class);
             log.debug("[Binance] ListenKey 연장 완료");
         } catch (Exception e) {
             log.error("[Binance] ListenKey 연장 실패", e);
@@ -109,7 +105,7 @@ public class BinanceRestClient implements ExchangeRestClient {
 
             HttpEntity<String> entity = new HttpEntity<>(createApiKeyHeader(apiKey));
             ResponseEntity<String> response = restTemplate.exchange(
-                    baseUrl + "/fapi/v2/positionRisk?" + queryString,
+                    BASE_URL + "/fapi/v2/positionRisk?" + queryString,
                     HttpMethod.GET, entity, String.class);
 
             String body = response.getBody();
@@ -140,7 +136,7 @@ public class BinanceRestClient implements ExchangeRestClient {
 
             HttpEntity<String> entity = new HttpEntity<>(createApiKeyHeader(apiKey));
             ResponseEntity<String> response = restTemplate.exchange(
-                    baseUrl + "/fapi/v1/allOrders?" + queryString,
+                    BASE_URL + "/fapi/v1/allOrders?" + queryString,
                     HttpMethod.GET, entity, String.class);
 
             String body = response.getBody();
@@ -171,7 +167,7 @@ public class BinanceRestClient implements ExchangeRestClient {
 
             HttpEntity<String> entity = new HttpEntity<>(createApiKeyHeader(apiKey));
             ResponseEntity<String> response = restTemplate.exchange(
-                    baseUrl + "/fapi/v1/userTrades?" + queryString,
+                    BASE_URL + "/fapi/v1/userTrades?" + queryString,
                     HttpMethod.GET, entity, String.class);
 
             String body = response.getBody();

@@ -123,14 +123,3 @@ aws:
     access-key: ${aws.s3.access-key}
     secret-key: ${aws.s3.secret-key}
 
-exchange:
-  bybit:
-    rest-base-url: https://api.bybit.com/v5
-    ws-base-url: wss://stream.bybit.com/v5/private
-  binance:
-    rest-base-url: https://fapi.binance.com
-    ws-base-url: wss://fstream.binance.com
-  bitget:
-    rest-base-url: https://api.bitget.com
-    ws-base-url: wss://ws.bitget.com/v2/ws/private
-    demo-mode: false
