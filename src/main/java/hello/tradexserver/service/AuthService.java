@@ -246,6 +246,12 @@ public class AuthService {
         refreshTokenRepository.deleteByUser(user);
     }
 
+    public AuthResponse testLogin(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new AuthException(ErrorCode.USER_NOT_FOUND));
+        return generateTokens(user);
+    }
+
     public UserResponse completeProfile(Long userId, CompleteProfileRequest request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new AuthException(ErrorCode.USER_NOT_FOUND));
