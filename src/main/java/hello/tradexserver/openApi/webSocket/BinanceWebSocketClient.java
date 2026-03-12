@@ -95,7 +95,7 @@ public class BinanceWebSocketClient implements ExchangeWebSocketClient {
         stopKeepAliveScheduler();
         keepAliveFuture = scheduler.scheduleHeavyTask(() -> {
             try {
-                binanceRestClient.keepAliveListenKey(exchangeApiKey);
+                binanceRestClient.keepAliveListenKey(exchangeApiKey, listenKey);
             } catch (Exception e) {
                 log.error("[Binance] ListenKey 연장 실패 - user: {}", userId, e);
             }
@@ -391,7 +391,7 @@ public class BinanceWebSocketClient implements ExchangeWebSocketClient {
             log.warn("[Binance] ListenKey 만료됨 - 재연결 시도 - user: {}", userId);
             isConnected = false;
             disconnectTime.compareAndSet(null, LocalDateTime.now());
-            scheduleReconnect();
+            close(); // 명시적으로 닫아야 onClose → scheduleReconnect 흐름으로 이어짐
         }
 
         private BigDecimal parseBigDecimal(String value) {
