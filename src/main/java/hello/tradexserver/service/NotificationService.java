@@ -1,13 +1,17 @@
 package hello.tradexserver.service;
 
 import hello.tradexserver.domain.Notification;
+import hello.tradexserver.domain.NotificationSetting;
 import hello.tradexserver.domain.Position;
 import hello.tradexserver.domain.User;
 import hello.tradexserver.domain.enums.NotificationType;
+import hello.tradexserver.dto.request.NotificationSettingRequest;
 import hello.tradexserver.dto.response.NotificationResponse;
+import hello.tradexserver.dto.response.NotificationSettingResponse;
 import hello.tradexserver.exception.BusinessException;
 import hello.tradexserver.exception.ErrorCode;
 import hello.tradexserver.repository.NotificationRepository;
+import hello.tradexserver.repository.NotificationSettingRepository;
 import hello.tradexserver.repository.PositionRepository;
 import hello.tradexserver.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +29,7 @@ import java.util.List;
 public class NotificationService {
 
     private final NotificationRepository notificationRepository;
+    private final NotificationSettingRepository notificationSettingRepository;
     private final UserRepository userRepository;
     private final PositionRepository positionRepository;
     private final SimpMessagingTemplate messagingTemplate;
@@ -86,6 +91,25 @@ public class NotificationService {
         notificationRepository.markAllAsReadByUserId(userId);
     }
 
+    @Transactional(readOnly = true)
+    public NotificationSettingResponse getSetting(Long userId) {
+        return notificationSettingRepository.findByUserId(userId)
+                .map(NotificationSettingResponse::from)
+                .orElse(NotificationSettingResponse.allEnabled());
+    }
+
+    public NotificationSettingResponse updateSetting(Long userId, NotificationSettingRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        NotificationSetting setting = notificationSettingRepository.findByUserId(userId)
+                .orElseGet(() -> NotificationSetting.defaultFor(user));
+
+        setting.update(request.getPositionEntryEnabled(), request.getPositionExitEnabled());
+        notificationSettingRepository.save(setting);
+        return NotificationSettingResponse.from(setting);
+    }
+
     /**
      * 포지션 open/close 이벤트에서 호출.
      * DB 저장 후 WebSocket으로 실시간 push.
@@ -93,6 +117,19 @@ public class NotificationService {
      */
     public void createPositionNotification(Long userId, Long positionId,
                                            NotificationType type, String title, String message) {
+        // 알림 수신 설정 확인 (설정 없으면 기본값 활성)
+        NotificationSetting setting = notificationSettingRepository.findByUserId(userId).orElse(null);
+        if (setting != null) {
+            if (type == NotificationType.POSITION_ENTRY && !setting.isPositionEntryEnabled()) {
+                log.debug("[NotificationService] 포지션 진입 알림 비활성 - userId: {}", userId);
+                return;
+            }
+            if (type == NotificationType.POSITION_EXIT && !setting.isPositionExitEnabled()) {
+                log.debug("[NotificationService] 포지션 청산 알림 비활성 - userId: {}", userId);
+                return;
+            }
+        }
+
         User user = userRepository.findById(userId).orElse(null);
         if (user == null) {
             log.warn("[NotificationService] User not found - userId: {}", userId);
