@@ -1,11 +1,14 @@
 package hello.tradexserver.controller;
 
+import hello.tradexserver.dto.request.NotificationSettingRequest;
 import hello.tradexserver.dto.response.ApiResponse;
 import hello.tradexserver.dto.response.NotificationResponse;
+import hello.tradexserver.dto.response.NotificationSettingResponse;
 import hello.tradexserver.security.CustomUserDetails;
 import hello.tradexserver.service.NotificationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -81,5 +84,24 @@ public class NotificationController {
         log.info("[NotificationController] 알림 삭제 - userId: {}, notificationId: {}", userDetails.getUserId(), id);
         notificationService.deleteNotification(id, userDetails.getUserId());
         return ResponseEntity.ok(ApiResponse.success());
+    }
+
+    @GetMapping("/settings")
+    @Operation(summary = "알림 설정 조회", description = "포지션 진입/청산 알림 수신 여부를 조회합니다")
+    public ResponseEntity<ApiResponse<NotificationSettingResponse>> getSetting(
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        NotificationSettingResponse response = notificationService.getSetting(userDetails.getUserId());
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @PatchMapping("/settings")
+    @Operation(summary = "알림 설정 변경", description = "포지션 진입/청산 알림 수신 여부를 설정합니다")
+    public ResponseEntity<ApiResponse<NotificationSettingResponse>> updateSetting(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @Valid @RequestBody NotificationSettingRequest request
+    ) {
+        NotificationSettingResponse response = notificationService.updateSetting(userDetails.getUserId(), request);
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 }
