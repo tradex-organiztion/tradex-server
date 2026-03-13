@@ -34,6 +34,7 @@ public class ExchangeAssetService {
                     try {
                         ExchangeRestClient client = exchangeFactory.getExchangeService(key.getExchangeName());
                         BigDecimal asset = client.getAsset(key);
+                        log.info("[getTotalAsset] {} → {}", key.getExchangeName(), asset);
                         return asset != null ? asset : BigDecimal.ZERO;
                     } catch (Exception e) {
                         log.warn("Failed to get asset from {}: {}", key.getExchangeName(), e.getMessage());
@@ -59,6 +60,9 @@ public class ExchangeAssetService {
                 WalletBalanceResponse walletBalance = client.getWalletBalance(key);
 
                 if (walletBalance != null) {
+                    log.info("[getAggregatedWalletBalance] {} → totalEquity: {}, coins: {}",
+                            key.getExchangeName(), walletBalance.getTotalEquity(),
+                            walletBalance.getCoins() != null ? walletBalance.getCoins() : "null");
                     if (walletBalance.getTotalEquity() != null) {
                         totalEquity = totalEquity.add(walletBalance.getTotalEquity());
                     }
@@ -71,6 +75,7 @@ public class ExchangeAssetService {
             }
         }
 
+        log.info("[getAggregatedWalletBalance] 최종 합산 → totalEquity: {}, 총 코인 수: {}", totalEquity, allCoins.size());
         return WalletBalanceResponse.builder()
                 .totalEquity(totalEquity)
                 .coins(allCoins)

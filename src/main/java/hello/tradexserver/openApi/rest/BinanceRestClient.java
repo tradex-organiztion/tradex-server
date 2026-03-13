@@ -1,11 +1,13 @@
 package hello.tradexserver.openApi.rest;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import hello.tradexserver.domain.ExchangeApiKey;
 import hello.tradexserver.openApi.rest.dto.BinanceAllOrderItem;
 import hello.tradexserver.openApi.rest.dto.BinancePositionRisk;
 import hello.tradexserver.openApi.rest.dto.BinanceUserTrade;
+import hello.tradexserver.openApi.rest.dto.CoinBalanceDto;
 import hello.tradexserver.openApi.rest.dto.WalletBalanceResponse;
 import hello.tradexserver.openApi.util.BinanceSignatureUtil;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
@@ -28,8 +31,8 @@ public class BinanceRestClient implements ExchangeRestClient {
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
 
-    // private static final String BASE_URL = "https://testnet.binancefuture.com";
-    private static final String BASE_URL = "https://fapi.binance.com";
+     private static final String BASE_URL = "https://testnet.binancefuture.com";
+//    private static final String BASE_URL = "https://fapi.binance.com";
 
     @Override
     public boolean validateApiKey(ExchangeApiKey apiKey) {
@@ -183,14 +186,69 @@ public class BinanceRestClient implements ExchangeRestClient {
 
     @Override
     public BigDecimal getAsset(ExchangeApiKey apiKey) {
-        // TODO: implement
-        return null;
+        WalletBalanceResponse walletBalance = getWalletBalance(apiKey);
+        if (walletBalance != null && walletBalance.getTotalEquity() != null) {
+            return walletBalance.getTotalEquity();
+        }
+        return BigDecimal.ZERO;
     }
 
     @Override
     public WalletBalanceResponse getWalletBalance(ExchangeApiKey apiKey) {
-        // TODO: implement
-        return null;
+        try {
+            String timestamp = String.valueOf(System.currentTimeMillis());
+            String queryString = "timestamp=" + timestamp;
+            String signature = BinanceSignatureUtil.generateSignature(apiKey.getApiSecret(), queryString);
+            queryString += "&signature=" + signature;
+
+            HttpEntity<String> entity = new HttpEntity<>(createApiKeyHeader(apiKey));
+            ResponseEntity<String> response = restTemplate.exchange(
+                    BASE_URL + "/fapi/v3/account?" + queryString,
+                    HttpMethod.GET, entity, String.class);
+
+            String body = response.getBody();
+            log.info("[Binance] account 원본 응답: {}", body);
+            if (body == null) {
+                log.warn("[Binance] account 응답 없음");
+                return WalletBalanceResponse.builder().totalEquity(BigDecimal.ZERO).coins(List.of()).build();
+            }
+
+            JsonNode root = objectMapper.readTree(body);
+
+            BigDecimal totalEquity = BigDecimal.ZERO;
+            List<CoinBalanceDto> coinBalances = new ArrayList<>();
+            JsonNode assets = root.path("assets");
+            if (assets.isArray()) {
+                for (JsonNode asset : assets) {
+                    BigDecimal marginBal = parseBigDecimal(asset.path("marginBalance").asText("0"));
+                    totalEquity = totalEquity.add(marginBal);
+
+                    BigDecimal walletBal = parseBigDecimal(asset.path("walletBalance").asText("0"));
+                    if (walletBal.compareTo(BigDecimal.ZERO) == 0) continue;
+
+                    coinBalances.add(CoinBalanceDto.builder()
+                            .coin(asset.path("asset").asText())
+                            .walletBalance(walletBal)
+                            .usdValue(marginBal)
+                            .build());
+                }
+            }
+
+            log.info("[Binance] 지갑 잔고 조회 성공 - 총 자산: {}, 코인 수: {}", totalEquity, coinBalances.size());
+            return WalletBalanceResponse.builder().totalEquity(totalEquity).coins(coinBalances).build();
+        } catch (Exception e) {
+            log.error("[Binance] 지갑 잔고 조회 실패 - apiKeyId: {}", apiKey.getId(), e);
+            return WalletBalanceResponse.builder().totalEquity(BigDecimal.ZERO).coins(List.of()).build();
+        }
+    }
+
+    private BigDecimal parseBigDecimal(String value) {
+        if (value == null || value.isEmpty() || "0".equals(value)) return BigDecimal.ZERO;
+        try {
+            return new BigDecimal(value);
+        } catch (NumberFormatException e) {
+            return BigDecimal.ZERO;
+        }
     }
 
     private HttpHeaders createApiKeyHeader(ExchangeApiKey apiKey) {

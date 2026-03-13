@@ -29,8 +29,8 @@ public class BybitRestClient implements ExchangeRestClient {
 
     private final RestTemplate restTemplate;
 
-    // private static final String BASE_URL = "https://api-demo.bybit.com/v5";
-    private static final String BASE_URL = "https://api.bybit.com/v5";
+     private static final String BASE_URL = "https://api-demo.bybit.com/v5";
+//    private static final String BASE_URL = "https://api.bybit.com/v5";
 
     @Override
     public boolean validateApiKey(ExchangeApiKey apiKey) {
@@ -136,6 +136,7 @@ public class BybitRestClient implements ExchangeRestClient {
             );
 
             Map<String, Object> response = responseEntity.getBody();
+            log.info("[Bybit] wallet-balance 원본 응답: {}", response);
 
             if (response == null) {
                 log.warn("Bybit wallet-balance 응답 없음");

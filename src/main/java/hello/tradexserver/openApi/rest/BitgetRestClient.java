@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import hello.tradexserver.domain.ExchangeApiKey;
 import hello.tradexserver.openApi.rest.dto.BitgetOrderHistoryItem;
 import hello.tradexserver.openApi.rest.dto.BitgetPositionItem;
+import hello.tradexserver.openApi.rest.dto.CoinBalanceDto;
 import hello.tradexserver.openApi.rest.dto.WalletBalanceResponse;
 import hello.tradexserver.openApi.util.BitgetSignatureUtil;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
@@ -30,7 +32,7 @@ public class BitgetRestClient implements ExchangeRestClient {
     private static final String BASE_URL = "https://api.bitget.com";
 
     // 데모 모드 여부 (데모 트레이딩 시 true)
-    private static final boolean IS_DEMO_MODE = false;
+    private static final boolean IS_DEMO_MODE = true;
 
     @Override
     public boolean validateApiKey(ExchangeApiKey apiKey) {
@@ -59,15 +61,81 @@ public class BitgetRestClient implements ExchangeRestClient {
 
     @Override
     public BigDecimal getAsset(ExchangeApiKey apiKey) {
-        // TODO: implement
-        log.info("[Bitget] getAsset - TODO");
-        return null;
+        WalletBalanceResponse walletBalance = getWalletBalance(apiKey);
+        if (walletBalance != null && walletBalance.getTotalEquity() != null) {
+            return walletBalance.getTotalEquity();
+        }
+        return BigDecimal.ZERO;
     }
 
     @Override
     public WalletBalanceResponse getWalletBalance(ExchangeApiKey apiKey) {
-        // TODO: implement
-        return null;
+        try {
+            String requestPath = "/api/v2/mix/account/accounts";
+            String queryString = "productType=USDT-FUTURES";
+            String fullPath = requestPath + "?" + queryString;
+
+            String timestamp = String.valueOf(System.currentTimeMillis());
+            HttpHeaders headers = createAuthHeaders(apiKey, timestamp, "GET", fullPath, "");
+
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+            ResponseEntity<String> response = restTemplate.exchange(
+                    BASE_URL + fullPath, HttpMethod.GET, entity, String.class);
+
+            String body = response.getBody();
+            log.info("[Bitget] accounts 원본 응답: {}", body);
+            if (body == null) {
+                log.warn("[Bitget] accounts 응답 없음");
+                return WalletBalanceResponse.builder().totalEquity(BigDecimal.ZERO).coins(List.of()).build();
+            }
+
+            JsonNode root = objectMapper.readTree(body);
+            if (!"00000".equals(root.path("code").asText())) {
+                log.warn("[Bitget] accounts 에러 - code: {}, msg: {}",
+                        root.path("code").asText(), root.path("msg").asText());
+                return WalletBalanceResponse.builder().totalEquity(BigDecimal.ZERO).coins(List.of()).build();
+            }
+
+            JsonNode dataArray = root.path("data");
+            if (!dataArray.isArray() || dataArray.isEmpty()) {
+                return WalletBalanceResponse.builder().totalEquity(BigDecimal.ZERO).coins(List.of()).build();
+            }
+
+            BigDecimal totalEquity = BigDecimal.ZERO;
+            List<CoinBalanceDto> coinBalances = new ArrayList<>();
+
+            for (JsonNode account : dataArray) {
+                BigDecimal usdtEquity = parseBigDecimal(account.path("usdtEquity").asText("0"));
+                totalEquity = totalEquity.add(usdtEquity);
+
+                BigDecimal available = parseBigDecimal(account.path("available").asText("0"));
+                BigDecimal locked = parseBigDecimal(account.path("locked").asText("0"));
+                BigDecimal walletBal = available.add(locked);
+
+                if (walletBal.compareTo(BigDecimal.ZERO) == 0) continue;
+
+                coinBalances.add(CoinBalanceDto.builder()
+                        .coin(account.path("marginCoin").asText())
+                        .walletBalance(walletBal)
+                        .usdValue(usdtEquity)
+                        .build());
+            }
+
+            log.info("[Bitget] 지갑 잔고 조회 성공 - 총 자산: {}, 코인 수: {}", totalEquity, coinBalances.size());
+            return WalletBalanceResponse.builder().totalEquity(totalEquity).coins(coinBalances).build();
+        } catch (Exception e) {
+            log.error("[Bitget] 지갑 잔고 조회 실패 - apiKeyId: {}", apiKey.getId(), e);
+            return WalletBalanceResponse.builder().totalEquity(BigDecimal.ZERO).coins(List.of()).build();
+        }
+    }
+
+    private BigDecimal parseBigDecimal(String value) {
+        if (value == null || value.isEmpty() || "0".equals(value)) return BigDecimal.ZERO;
+        try {
+            return new BigDecimal(value);
+        } catch (NumberFormatException e) {
+            return BigDecimal.ZERO;
+        }
     }
 
     /**
