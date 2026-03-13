@@ -106,7 +106,7 @@ public class BitgetRestClient implements ExchangeRestClient {
                 return List.of();
             }
 
-            JsonNode orderList = root.path("data").path("orderList");
+            JsonNode orderList = root.path("data").path("entrustedList");
             if (orderList.isMissingNode() || !orderList.isArray()) return List.of();
 
             return objectMapper.readValue(

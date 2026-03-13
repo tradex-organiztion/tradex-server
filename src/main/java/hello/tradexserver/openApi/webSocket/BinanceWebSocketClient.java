@@ -19,17 +19,14 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
 public class BinanceWebSocketClient implements ExchangeWebSocketClient {
 
-    // Testnet WebSocket
     // private static final String WSS_BASE_URL = "wss://fstream.binancefuture.com";
-    // Live WebSocket
     private static final String WSS_BASE_URL = "wss://fstream.binance.com";
 
     private final Long userId;
@@ -38,7 +35,7 @@ public class BinanceWebSocketClient implements ExchangeWebSocketClient {
     private final ObjectMapper objectMapper;
 
     private WebSocketClient wsClient;
-    private boolean isConnected = false;
+    private volatile boolean isConnected = false;
     private PositionListener positionListener;
     private OrderListener orderListener;
     private String listenKey;
@@ -49,19 +46,19 @@ public class BinanceWebSocketClient implements ExchangeWebSocketClient {
     // Binance ORDER_TRADE_UPDATE의 n(수수료)은 이번 체결분만 → orderId별 누적 필요
     private final ConcurrentHashMap<Long, BigDecimal> orderFeeAccumulator = new ConcurrentHashMap<>();
 
-    private ScheduledExecutorService reconnectExecutor;
-    private ScheduledExecutorService keepAliveExecutor;
-    private int reconnectAttempts = 0;
-    private boolean shouldReconnect = true;
+    private final WebSocketScheduler scheduler;
+    private ScheduledFuture<?> keepAliveFuture;
+    private ScheduledFuture<?> reconnectFuture;
+    private final AtomicInteger reconnectAttempts = new AtomicInteger(0);
+    private volatile boolean shouldReconnect = true;
 
     public BinanceWebSocketClient(Long userId, ExchangeApiKey exchangeApiKey,
-                                   BinanceRestClient binanceRestClient) {
+                                   BinanceRestClient binanceRestClient, WebSocketScheduler scheduler) {
         this.userId = userId;
         this.exchangeApiKey = exchangeApiKey;
         this.binanceRestClient = binanceRestClient;
         this.objectMapper = new ObjectMapper();
-        this.reconnectExecutor = Executors.newSingleThreadScheduledExecutor();
-        this.keepAliveExecutor = Executors.newSingleThreadScheduledExecutor();
+        this.scheduler = scheduler;
     }
 
     @Override
@@ -94,58 +91,64 @@ public class BinanceWebSocketClient implements ExchangeWebSocketClient {
         }
     }
 
-    private void startKeepAliveScheduler() {
-        keepAliveExecutor.scheduleAtFixedRate(() -> {
+    private synchronized void startKeepAliveScheduler() {
+        stopKeepAliveScheduler();
+        keepAliveFuture = scheduler.scheduleHeavyTask(() -> {
             try {
-                binanceRestClient.keepAliveListenKey(exchangeApiKey);
+                binanceRestClient.keepAliveListenKey(exchangeApiKey, listenKey);
             } catch (Exception e) {
                 log.error("[Binance] ListenKey 연장 실패 - user: {}", userId, e);
             }
-        }, 30, 30, TimeUnit.MINUTES);
+        }, 30, 30);
+    }
+
+    private synchronized void stopKeepAliveScheduler() {
+        if (keepAliveFuture != null && !keepAliveFuture.isDone()) {
+            keepAliveFuture.cancel(false);
+            keepAliveFuture = null;
+        }
     }
 
     @Override
     public void disconnect() {
         shouldReconnect = false;
+        stopKeepAliveScheduler();
+        if (reconnectFuture != null && !reconnectFuture.isDone()) {
+            reconnectFuture.cancel(false);
+            reconnectFuture = null;
+        }
         if (wsClient != null) {
             wsClient.close();
             isConnected = false;
             log.info("[Binance] WebSocket 연결 해제 - user: {}", userId);
         }
-        shutdownExecutors();
         orderFeeAccumulator.clear();
     }
 
-    private void shutdownExecutors() {
-        if (reconnectExecutor != null && !reconnectExecutor.isShutdown()) {
-            reconnectExecutor.shutdownNow();
-        }
-        if (keepAliveExecutor != null && !keepAliveExecutor.isShutdown()) {
-            keepAliveExecutor.shutdownNow();
-        }
-    }
-
-    private void scheduleReconnect() {
+    private synchronized void scheduleReconnect() {
         if (!shouldReconnect) return;
-        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+        if (reconnectAttempts.get() >= MAX_RECONNECT_ATTEMPTS) {
             log.error("[Binance] 최대 재연결 시도 횟수({}) 도달 - user: {}", MAX_RECONNECT_ATTEMPTS, userId);
             return;
         }
 
-        long delay = Math.min(
-                INITIAL_RECONNECT_DELAY_MS * (1L << reconnectAttempts),
-                MAX_RECONNECT_DELAY_MS
-        );
-        reconnectAttempts++;
+        if (reconnectFuture != null && !reconnectFuture.isDone()) {
+            return;
+        }
+
+        int attempts = reconnectAttempts.getAndIncrement();
+        long delay = attempts >= 6
+                ? MAX_RECONNECT_DELAY_MS
+                : INITIAL_RECONNECT_DELAY_MS * (1L << attempts);
 
         log.info("[Binance] 재연결 시도 {}/{} 예약 - user: {}, {}ms 후",
-                reconnectAttempts, MAX_RECONNECT_ATTEMPTS, userId, delay);
+                attempts + 1, MAX_RECONNECT_ATTEMPTS, userId, delay);
 
-        reconnectExecutor.schedule(() -> {
+        reconnectFuture = scheduler.scheduleReconnect(() -> {
             if (shouldReconnect && !isConnected()) {
                 connect();
             }
-        }, delay, TimeUnit.MILLISECONDS);
+        }, delay);
     }
 
     @Override
@@ -168,7 +171,7 @@ public class BinanceWebSocketClient implements ExchangeWebSocketClient {
         @Override
         public void onOpen(ServerHandshake handshakedata) {
             isConnected = true;
-            reconnectAttempts = 0;
+            reconnectAttempts.set(0);
             log.info("[Binance] WebSocket 연결 성공 - user: {}", userId);
             subscribePosition();
 
@@ -388,7 +391,7 @@ public class BinanceWebSocketClient implements ExchangeWebSocketClient {
             log.warn("[Binance] ListenKey 만료됨 - 재연결 시도 - user: {}", userId);
             isConnected = false;
             disconnectTime.compareAndSet(null, LocalDateTime.now());
-            scheduleReconnect();
+            close(); // 명시적으로 닫아야 onClose → scheduleReconnect 흐름으로 이어짐
         }
 
         private BigDecimal parseBigDecimal(String value) {

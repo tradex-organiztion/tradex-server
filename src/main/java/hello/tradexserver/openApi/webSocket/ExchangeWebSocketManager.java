@@ -17,6 +17,7 @@ public class ExchangeWebSocketManager {
     private final Map<String, ExchangeWebSocketClient> activeConnections = new ConcurrentHashMap<>();
 
     private final BinanceRestClient binanceRestClient;
+    private final WebSocketScheduler webSocketScheduler;
     private final PositionListener positionListener;
     private final OrderListener orderListener;
 
@@ -73,15 +74,15 @@ public class ExchangeWebSocketManager {
         String exchange = apiKey.getExchangeName().name();
 
         if ("BYBIT".equalsIgnoreCase(exchange)) {
-            return new BybitWebSocketClient(userId, apiKey);
+            return new BybitWebSocketClient(userId, apiKey, webSocketScheduler);
         }
 
         if ("BINANCE".equalsIgnoreCase(exchange)) {
-            return new BinanceWebSocketClient(userId, apiKey, binanceRestClient);
+            return new BinanceWebSocketClient(userId, apiKey, binanceRestClient, webSocketScheduler);
         }
 
         if ("BITGET".equalsIgnoreCase(exchange)) {
-            return new BitgetWebSocketClient(userId, apiKey);
+            return new BitgetWebSocketClient(userId, apiKey, webSocketScheduler);
         }
 
         throw new IllegalArgumentException("Unsupported exchange: " + exchange);

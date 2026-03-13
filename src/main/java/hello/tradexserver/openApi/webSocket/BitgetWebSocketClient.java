@@ -23,26 +23,23 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
 public class BitgetWebSocketClient implements ExchangeWebSocketClient {
 
-    // live용 base url
+    // private static final String WSS_URL = "wss://wspap.bitget.com/v2/ws/private";
     private static final String WSS_URL = "wss://ws.bitget.com/v2/ws/private";
-    // demo용 base url
-//    private static final String WSS_URL = "wss://wspap.bitget.com/v2/ws/private";
 
     private final Long userId;
     private final ExchangeApiKey exchangeApiKey;
     private final ObjectMapper objectMapper;
 
     private WebSocketClient wsClient;
-    private boolean isConnected = false;
-    private boolean isAuthenticated = false;
+    private volatile boolean isConnected = false;
+    private volatile boolean isAuthenticated = false;
     private PositionListener positionListener;
     private OrderListener orderListener;
 
@@ -52,15 +49,16 @@ public class BitgetWebSocketClient implements ExchangeWebSocketClient {
     // snapshot 비교용: 현재 추적 중인 오픈 포지션 (key: "instId_holdSide", value: PositionSide)
     private final ConcurrentHashMap<String, PositionSide> trackedPositions = new ConcurrentHashMap<>();
 
-    private ScheduledExecutorService scheduledExecutor;
-    private int reconnectAttempts = 0;
-    private boolean shouldReconnect = true;
+    private final WebSocketScheduler scheduler;
+    private ScheduledFuture<?> pingFuture;
+    private final AtomicInteger reconnectAttempts = new AtomicInteger(0);
+    private volatile boolean shouldReconnect = true;
 
-    public BitgetWebSocketClient(Long userId, ExchangeApiKey exchangeApiKey) {
+    public BitgetWebSocketClient(Long userId, ExchangeApiKey exchangeApiKey, WebSocketScheduler scheduler) {
         this.userId = userId;
         this.exchangeApiKey = exchangeApiKey;
         this.objectMapper = new ObjectMapper();
-        this.scheduledExecutor = Executors.newScheduledThreadPool(2);
+        this.scheduler = scheduler;
     }
 
     @Override
@@ -87,43 +85,57 @@ public class BitgetWebSocketClient implements ExchangeWebSocketClient {
     @Override
     public void disconnect() {
         shouldReconnect = false;
+        stopPingScheduler();
         if (wsClient != null) {
             wsClient.close();
             isConnected = false;
             isAuthenticated = false;
             log.info("[Bitget] WebSocket disconnected for user: {}", userId);
         }
-        shutdownExecutor();
     }
 
-    private void shutdownExecutor() {
-        if (scheduledExecutor != null && !scheduledExecutor.isShutdown()) {
-            scheduledExecutor.shutdownNow();
+    private synchronized void startPingScheduler() {
+        stopPingScheduler();
+        pingFuture = scheduler.schedulePing(() -> {
+            try {
+                if (isConnected && wsClient != null && wsClient.isOpen()) {
+                    wsClient.send("ping");
+                }
+            } catch (Exception e) {
+                log.error("[Bitget] ping 전송 실패 - user: {}, 재연결 시도", userId, e);
+                wsClient.close();
+            }
+        }, 25);
+    }
+
+    private synchronized void stopPingScheduler() {
+        if (pingFuture != null && !pingFuture.isDone()) {
+            pingFuture.cancel(false);
+            pingFuture = null;
         }
     }
 
     private void scheduleReconnect() {
         if (!shouldReconnect) return;
-        if (reconnectAttempts >= ExchangeWebSocketClient.MAX_RECONNECT_ATTEMPTS) {
+        if (reconnectAttempts.get() >= ExchangeWebSocketClient.MAX_RECONNECT_ATTEMPTS) {
             log.error("[Bitget] 최대 재연결 시도 횟수({}) 도달 - user: {}",
                     ExchangeWebSocketClient.MAX_RECONNECT_ATTEMPTS, userId);
             return;
         }
 
-        long delay = Math.min(
-                ExchangeWebSocketClient.INITIAL_RECONNECT_DELAY_MS * (1L << reconnectAttempts),
-                ExchangeWebSocketClient.MAX_RECONNECT_DELAY_MS
-        );
-        reconnectAttempts++;
+        int attempts = reconnectAttempts.getAndIncrement();
+        long delay = attempts >= 6
+                ? ExchangeWebSocketClient.MAX_RECONNECT_DELAY_MS
+                : ExchangeWebSocketClient.INITIAL_RECONNECT_DELAY_MS * (1L << attempts);
 
         log.info("[Bitget] 재연결 시도 {}/{} 예약 - user: {}, {}ms 후",
-                reconnectAttempts, ExchangeWebSocketClient.MAX_RECONNECT_ATTEMPTS, userId, delay);
+                attempts + 1, ExchangeWebSocketClient.MAX_RECONNECT_ATTEMPTS, userId, delay);
 
-        scheduledExecutor.schedule(() -> {
+        scheduler.scheduleReconnect(() -> {
             if (shouldReconnect && !isConnected()) {
                 connect();
             }
-        }, delay, TimeUnit.MILLISECONDS);
+        }, delay);
     }
 
     @Override
@@ -150,14 +162,6 @@ public class BitgetWebSocketClient implements ExchangeWebSocketClient {
         }
     }
 
-    private void startPingScheduler() {
-        scheduledExecutor.scheduleAtFixedRate(() -> {
-            if (isConnected && wsClient != null && wsClient.isOpen()) {
-                wsClient.send("ping");
-            }
-        }, 25, 25, TimeUnit.SECONDS);
-    }
-
     // ================ 내부 WebSocket 클래스 ================
     private class BitgetWebSocketImpl extends WebSocketClient {
         public BitgetWebSocketImpl(URI serverUri) {
@@ -167,7 +171,7 @@ public class BitgetWebSocketClient implements ExchangeWebSocketClient {
         @Override
         public void onOpen(ServerHandshake handshakedata) {
             isConnected = true;
-            reconnectAttempts = 0;
+            reconnectAttempts.set(0);
             log.info("[Bitget] WebSocket opened for user: {}", userId);
             sendLoginMessage();
             startPingScheduler();
@@ -295,30 +299,32 @@ public class BitgetWebSocketClient implements ExchangeWebSocketClient {
             }
 
             // tracked에만 있고 snapshot에 없는 포지션 → close 처리
-            Iterator<Map.Entry<String, PositionSide>> it = trackedPositions.entrySet().iterator();
-            while (it.hasNext()) {
-                Map.Entry<String, PositionSide> entry = it.next();
-                if (!snapshotKeys.contains(entry.getKey())) {
-                    String[] parts = entry.getKey().split("_", 2);
-                    String symbol = parts[0];
-                    PositionSide side = entry.getValue();
+            synchronized (trackedPositions) {
+                Iterator<Map.Entry<String, PositionSide>> it = trackedPositions.entrySet().iterator();
+                while (it.hasNext()) {
+                    Map.Entry<String, PositionSide> entry = it.next();
+                    if (!snapshotKeys.contains(entry.getKey())) {
+                        String[] parts = entry.getKey().split("_", 2);
+                        String symbol = parts[0];
+                        PositionSide side = entry.getValue();
 
-                    log.info("[Bitget] Snapshot 기반 포지션 종료 감지 - symbol: {}, side: {}, user: {}",
-                            symbol, side, userId);
+                        log.info("[Bitget] Snapshot 기반 포지션 종료 감지 - symbol: {}, side: {}, user: {}",
+                                symbol, side, userId);
 
-                    if (positionListener != null) {
-                        Position closedPosition = Position.builder()
-                                .exchangeApiKey(exchangeApiKey)
-                                .symbol(symbol)
-                                .side(side)
-                                .currentSize(BigDecimal.ZERO)
-                                .avgEntryPrice(BigDecimal.ZERO)
-                                .status(PositionStatus.CLOSED)
-                                .exchangeUpdateTime(LocalDateTime.now())
-                                .build();
-                        positionListener.onPositionClosed(closedPosition);
+                        if (positionListener != null) {
+                            Position closedPosition = Position.builder()
+                                    .exchangeApiKey(exchangeApiKey)
+                                    .symbol(symbol)
+                                    .side(side)
+                                    .currentSize(BigDecimal.ZERO)
+                                    .avgEntryPrice(BigDecimal.ZERO)
+                                    .status(PositionStatus.CLOSED)
+                                    .exchangeUpdateTime(LocalDateTime.now())
+                                    .build();
+                            positionListener.onPositionClosed(closedPosition);
+                        }
+                        it.remove();
                     }
-                    it.remove();
                 }
             }
         }
@@ -330,13 +336,17 @@ public class BitgetWebSocketClient implements ExchangeWebSocketClient {
 
             if (positionListener != null) {
                 if (total.compareTo(BigDecimal.ZERO) == 0) {
-                    trackedPositions.remove(key);
+                    synchronized (trackedPositions) {
+                        trackedPositions.remove(key);
+                    }
                     positionListener.onPositionClosed(position);
                 } else {
                     // 플립 감지: 같은 instId에 다른 holdSide의 tracked 포지션이 있으면 종료 처리
                     detectAndCloseFlippedPosition(data.getInstId(), key, position.getSide());
 
-                    trackedPositions.put(key, position.getSide());
+                    synchronized (trackedPositions) {
+                        trackedPositions.put(key, position.getSide());
+                    }
                     positionListener.onPositionUpdate(position);
                 }
             }
@@ -346,28 +356,30 @@ public class BitgetWebSocketClient implements ExchangeWebSocketClient {
          * holdSide가 반전된 경우 (예: long→short) 기존 tracked 포지션을 종료 처리하고 제거한다.
          */
         private void detectAndCloseFlippedPosition(String instId, String newKey, PositionSide newSide) {
-            Iterator<Map.Entry<String, PositionSide>> it = trackedPositions.entrySet().iterator();
-            while (it.hasNext()) {
-                Map.Entry<String, PositionSide> entry = it.next();
-                // 같은 instId이고, 다른 key(다른 holdSide)이며, 다른 side인 경우
-                if (entry.getKey().startsWith(instId + "_") && !entry.getKey().equals(newKey)
-                        && entry.getValue() != newSide) {
-                    log.info("[Bitget] 포지션 플립 감지 - symbol: {}, {} → {}, user: {}",
-                            instId, entry.getValue(), newSide, userId);
+            synchronized (trackedPositions) {
+                Iterator<Map.Entry<String, PositionSide>> it = trackedPositions.entrySet().iterator();
+                while (it.hasNext()) {
+                    Map.Entry<String, PositionSide> entry = it.next();
+                    // 같은 instId이고, 다른 key(다른 holdSide)이며, 다른 side인 경우
+                    if (entry.getKey().startsWith(instId + "_") && !entry.getKey().equals(newKey)
+                            && entry.getValue() != newSide) {
+                        log.info("[Bitget] 포지션 플립 감지 - symbol: {}, {} → {}, user: {}",
+                                instId, entry.getValue(), newSide, userId);
 
-                    if (positionListener != null) {
-                        Position closedPosition = Position.builder()
-                                .exchangeApiKey(exchangeApiKey)
-                                .symbol(instId)
-                                .side(entry.getValue())
-                                .currentSize(BigDecimal.ZERO)
-                                .avgEntryPrice(BigDecimal.ZERO)
-                                .status(PositionStatus.CLOSED)
-                                .exchangeUpdateTime(LocalDateTime.now())
-                                .build();
-                        positionListener.onPositionClosed(closedPosition);
+                        if (positionListener != null) {
+                            Position closedPosition = Position.builder()
+                                    .exchangeApiKey(exchangeApiKey)
+                                    .symbol(instId)
+                                    .side(entry.getValue())
+                                    .currentSize(BigDecimal.ZERO)
+                                    .avgEntryPrice(BigDecimal.ZERO)
+                                    .status(PositionStatus.CLOSED)
+                                    .exchangeUpdateTime(LocalDateTime.now())
+                                    .build();
+                            positionListener.onPositionClosed(closedPosition);
+                        }
+                        it.remove();
                     }
-                    it.remove();
                 }
             }
         }
@@ -551,6 +563,7 @@ public class BitgetWebSocketClient implements ExchangeWebSocketClient {
         public void onClose(int code, String reason, boolean remote) {
             isConnected = false;
             isAuthenticated = false;
+            stopPingScheduler();
             disconnectTime.compareAndSet(null, LocalDateTime.now());
             log.warn("[Bitget] WebSocket closed - user: {}, code: {}, reason: {}, remote: {}",
                     userId, code, reason, remote);

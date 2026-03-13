@@ -28,9 +28,7 @@ public class BinanceRestClient implements ExchangeRestClient {
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
 
-    // Testnet API
     // private static final String BASE_URL = "https://testnet.binancefuture.com";
-    // Live API
     private static final String BASE_URL = "https://fapi.binance.com";
 
     @Override
@@ -63,12 +61,12 @@ public class BinanceRestClient implements ExchangeRestClient {
                     BASE_URL + "/fapi/v1/listenKey", HttpMethod.POST, entity, String.class);
 
             String body = response.getBody();
-            if (body != null && body.contains("listenKey")) {
-                int start = body.indexOf("\"listenKey\":\"") + 13;
-                int end = body.indexOf("\"", start);
-                String listenKey = body.substring(start, end);
-                log.info("[Binance] ListenKey 생성 완료");
-                return listenKey;
+            if (body != null) {
+                String listenKey = objectMapper.readTree(body).path("listenKey").asText(null);
+                if (listenKey != null && !listenKey.isEmpty()) {
+                    log.info("[Binance] ListenKey 생성 완료");
+                    return listenKey;
+                }
             }
             return null;
         } catch (Exception e) {
@@ -80,11 +78,12 @@ public class BinanceRestClient implements ExchangeRestClient {
     /**
      * User Data Stream listenKey 연장
      */
-    public void keepAliveListenKey(ExchangeApiKey apiKey) {
+    public void keepAliveListenKey(ExchangeApiKey apiKey, String listenKey) {
         try {
             HttpEntity<String> entity = new HttpEntity<>(createApiKeyHeader(apiKey));
             restTemplate.exchange(
-                    BASE_URL + "/fapi/v1/listenKey", HttpMethod.PUT, entity, String.class);
+                    BASE_URL + "/fapi/v1/listenKey?listenKey=" + listenKey,
+                    HttpMethod.PUT, entity, String.class);
             log.debug("[Binance] ListenKey 연장 완료");
         } catch (Exception e) {
             log.error("[Binance] ListenKey 연장 실패", e);
