@@ -10,14 +10,18 @@ import hello.tradexserver.repository.TradingJournalRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.SystemMessage;
-import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+
+import jakarta.persistence.criteria.Predicate;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -75,8 +79,10 @@ public class ChatContextService {
             }
         }
 
-        List<TradingJournal> journals = tradingJournalRepository.searchJournals(
-                userId, symbol, startDate, PageRequest.of(0, 10));
+        Specification<TradingJournal> spec = buildSearchSpec(userId, symbol, startDate);
+        List<TradingJournal> journals = tradingJournalRepository
+                .findAll(spec, Sort.by(Sort.Direction.DESC, "position.exitTime"))
+                .stream().limit(10).toList();
 
         List<JournalSearchResponse.JournalSummary> summaries = journals.stream()
                 .map(tj -> new JournalSearchResponse.JournalSummary(
@@ -91,6 +97,25 @@ public class ChatContextService {
                 .collect(Collectors.toList());
 
         return new JournalSearchResponse(summaries);
+    }
+
+    private Specification<TradingJournal> buildSearchSpec(Long userId, String symbol, LocalDateTime startDate) {
+        return (root, query, cb) -> {
+            var position = root.join("position");
+            var predicates = new ArrayList<Predicate>();
+
+            predicates.add(cb.equal(root.get("user").get("id"), userId));
+            predicates.add(cb.equal(position.get("status"), "CLOSED"));
+
+            if (symbol != null && !symbol.isBlank()) {
+                predicates.add(cb.equal(position.get("symbol"), symbol));
+            }
+            if (startDate != null) {
+                predicates.add(cb.greaterThanOrEqualTo(position.get("exitTime"), startDate));
+            }
+
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
     }
 
     private void buildSummarySection(StringBuilder prompt, Object[] stats) {
