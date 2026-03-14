@@ -6,8 +6,8 @@ import hello.tradexserver.domain.ExchangeApiKey;
 import hello.tradexserver.openApi.rest.dto.BitgetOrderHistoryItem;
 import hello.tradexserver.openApi.rest.dto.BitgetPositionItem;
 import hello.tradexserver.openApi.rest.dto.WalletBalanceResponse;
+import hello.tradexserver.config.ExchangeProperties;
 import hello.tradexserver.openApi.util.BitgetSignatureUtil;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -22,16 +22,20 @@ import java.util.List;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class BitgetRestClient implements ExchangeRestClient {
 
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
+    private final String baseUrl;
+    private final boolean demoMode;
 
-    private static final String BASE_URL = "https://api.bitget.com";
-
-    // 데모 모드 여부 (데모 트레이딩 시 true)
-    private static final boolean IS_DEMO_MODE = false;
+    public BitgetRestClient(RestTemplate restTemplate, ObjectMapper objectMapper,
+                             ExchangeProperties props) {
+        this.restTemplate = restTemplate;
+        this.objectMapper = objectMapper;
+        this.baseUrl = props.getBitget().getRestUrl();
+        this.demoMode = props.getBitget().isDemoMode();
+    }
 
     private static final List<String> PRODUCT_TYPES = List.of("USDT-FUTURES", "USDC-FUTURES");
 
@@ -47,7 +51,7 @@ public class BitgetRestClient implements ExchangeRestClient {
 
             HttpEntity<String> entity = new HttpEntity<>(headers);
             ResponseEntity<String> response = restTemplate.exchange(
-                    BASE_URL + fullPath, HttpMethod.GET, entity, String.class);
+                    baseUrl + fullPath, HttpMethod.GET, entity, String.class);
 
             String body = response.getBody();
             if (body == null) return false;
@@ -107,7 +111,7 @@ public class BitgetRestClient implements ExchangeRestClient {
 
             HttpEntity<String> entity = new HttpEntity<>(headers);
             ResponseEntity<String> response = restTemplate.exchange(
-                    BASE_URL + fullPath, HttpMethod.GET, entity, String.class);
+                    baseUrl + fullPath, HttpMethod.GET, entity, String.class);
 
             String body = response.getBody();
             if (body == null) return List.of();
@@ -155,7 +159,7 @@ public class BitgetRestClient implements ExchangeRestClient {
 
             HttpEntity<String> entity = new HttpEntity<>(headers);
             ResponseEntity<String> response = restTemplate.exchange(
-                    BASE_URL + fullPath, HttpMethod.GET, entity, String.class);
+                    baseUrl + fullPath, HttpMethod.GET, entity, String.class);
 
             String body = response.getBody();
             if (body == null) return List.of();
@@ -194,7 +198,7 @@ public class BitgetRestClient implements ExchangeRestClient {
             headers.set("Content-Type", "application/json");
             headers.set("locale", "en-US");
 
-            if (IS_DEMO_MODE) {
+            if (demoMode) {
                 headers.set("paptrading", "1");
             }
 
