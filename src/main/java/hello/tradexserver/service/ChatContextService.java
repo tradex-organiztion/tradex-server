@@ -142,17 +142,23 @@ public class ChatContextService {
                 request.exchangeName() != null ? request.exchangeName().toUpperCase() : null,
                 startDate, endDate);
 
-        if (row == null || row[0] == null) {
+        if (row == null || row.length == 0 || row[0] == null) {
             return new JournalStatsResponse(0, 0, 0, "0.00%", "0", "0", "0", "0");
         }
 
-        int totalCount = ((Number) row[0]).intValue();
-        int winCount = row[1] != null ? ((Number) row[1]).intValue() : 0;
-        int lossCount = row[2] != null ? ((Number) row[2]).intValue() : 0;
-        BigDecimal totalPnl = row[3] != null ? new BigDecimal(row[3].toString()) : BigDecimal.ZERO;
-        BigDecimal avgPnl = row[4] != null ? new BigDecimal(row[4].toString()) : BigDecimal.ZERO;
-        BigDecimal maxWin = row[5] != null ? new BigDecimal(row[5].toString()) : BigDecimal.ZERO;
-        BigDecimal maxLoss = row[6] != null ? new BigDecimal(row[6].toString()) : BigDecimal.ZERO;
+        // native query 결과가 Object[][] 또는 Object[]로 올 수 있음
+        Object[] data = row[0] instanceof Object[] ? (Object[]) row[0] : row;
+        if (data[0] == null) {
+            return new JournalStatsResponse(0, 0, 0, "0.00%", "0", "0", "0", "0");
+        }
+
+        int totalCount = ((Number) data[0]).intValue();
+        int winCount = data[1] != null ? ((Number) data[1]).intValue() : 0;
+        int lossCount = data[2] != null ? ((Number) data[2]).intValue() : 0;
+        BigDecimal totalPnl = data[3] != null ? new BigDecimal(data[3].toString()) : BigDecimal.ZERO;
+        BigDecimal avgPnl = data[4] != null ? new BigDecimal(data[4].toString()) : BigDecimal.ZERO;
+        BigDecimal maxWin = data[5] != null ? new BigDecimal(data[5].toString()) : BigDecimal.ZERO;
+        BigDecimal maxLoss = data[6] != null ? new BigDecimal(data[6].toString()) : BigDecimal.ZERO;
 
         String winRate = totalCount > 0
                 ? BigDecimal.valueOf(winCount).divide(BigDecimal.valueOf(totalCount), 4, RoundingMode.HALF_UP)

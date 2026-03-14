@@ -54,18 +54,18 @@ public interface TradingJournalRepository extends JpaRepository<TradingJournal, 
             LEFT JOIN tj.refinedJournal rj
             WHERE tj.user.id = :userId
             AND p.status = 'CLOSED'
-            AND (:symbol IS NULL OR p.symbol = :symbol)
-            AND (:side IS NULL OR p.side = :side)
-            AND (:exchangeName IS NULL OR p.exchangeName = :exchangeName)
-            AND (:startDate IS NULL OR p.exitTime >= :startDate)
-            AND (:endDate IS NULL OR p.exitTime <= :endDate)
-            AND (:minPnl IS NULL OR p.realizedPnl >= :minPnl)
-            AND (:maxPnl IS NULL OR p.realizedPnl <= :maxPnl)
+            AND (cast(:symbol as string) IS NULL OR p.symbol = :symbol)
+            AND (cast(:side as string) IS NULL OR p.side = :side)
+            AND (cast(:exchangeName as string) IS NULL OR p.exchangeName = :exchangeName)
+            AND (cast(:startDate as LocalDateTime) IS NULL OR p.exitTime >= :startDate)
+            AND (cast(:endDate as LocalDateTime) IS NULL OR p.exitTime <= :endDate)
+            AND (cast(:minPnl as big_decimal) IS NULL OR p.realizedPnl >= :minPnl)
+            AND (cast(:maxPnl as big_decimal) IS NULL OR p.realizedPnl <= :maxPnl)
             AND (:pnlPositive = false OR p.realizedPnl > 0)
             AND (:pnlNegative = false OR p.realizedPnl <= 0)
-            AND (:isEmotionalTrade IS NULL OR (rj IS NOT NULL AND rj.isEmotionalTrade = :isEmotionalTrade))
-            AND (:isUnplannedEntry IS NULL OR (rj IS NOT NULL AND rj.isUnplannedEntry = :isUnplannedEntry))
-            AND (:hasReview IS NULL OR :hasReview = false OR (tj.reviewContent IS NOT NULL AND tj.reviewContent <> ''))
+            AND (cast(:isEmotionalTrade as boolean) IS NULL OR (rj IS NOT NULL AND rj.isEmotionalTrade = :isEmotionalTrade))
+            AND (cast(:isUnplannedEntry as boolean) IS NULL OR (rj IS NOT NULL AND rj.isUnplannedEntry = :isUnplannedEntry))
+            AND (cast(:hasReview as boolean) IS NULL OR :hasReview = false OR (tj.reviewContent IS NOT NULL AND tj.reviewContent <> ''))
             """)
     long countJournals(
             @Param("userId") Long userId,
@@ -88,18 +88,18 @@ public interface TradingJournalRepository extends JpaRepository<TradingJournal, 
             LEFT JOIN FETCH tj.refinedJournal rj
             WHERE tj.user.id = :userId
             AND p.status = 'CLOSED'
-            AND (:symbol IS NULL OR p.symbol = :symbol)
-            AND (:side IS NULL OR p.side = :side)
-            AND (:exchangeName IS NULL OR p.exchangeName = :exchangeName)
-            AND (:startDate IS NULL OR p.exitTime >= :startDate)
-            AND (:endDate IS NULL OR p.exitTime <= :endDate)
-            AND (:minPnl IS NULL OR p.realizedPnl >= :minPnl)
-            AND (:maxPnl IS NULL OR p.realizedPnl <= :maxPnl)
+            AND (cast(:symbol as string) IS NULL OR p.symbol = :symbol)
+            AND (cast(:side as string) IS NULL OR p.side = :side)
+            AND (cast(:exchangeName as string) IS NULL OR p.exchangeName = :exchangeName)
+            AND (cast(:startDate as LocalDateTime) IS NULL OR p.exitTime >= :startDate)
+            AND (cast(:endDate as LocalDateTime) IS NULL OR p.exitTime <= :endDate)
+            AND (cast(:minPnl as big_decimal) IS NULL OR p.realizedPnl >= :minPnl)
+            AND (cast(:maxPnl as big_decimal) IS NULL OR p.realizedPnl <= :maxPnl)
             AND (:pnlPositive = false OR p.realizedPnl > 0)
             AND (:pnlNegative = false OR p.realizedPnl <= 0)
-            AND (:isEmotionalTrade IS NULL OR (rj IS NOT NULL AND rj.isEmotionalTrade = :isEmotionalTrade))
-            AND (:isUnplannedEntry IS NULL OR (rj IS NOT NULL AND rj.isUnplannedEntry = :isUnplannedEntry))
-            AND (:hasReview IS NULL OR :hasReview = false OR (tj.reviewContent IS NOT NULL AND tj.reviewContent <> ''))
+            AND (cast(:isEmotionalTrade as boolean) IS NULL OR (rj IS NOT NULL AND rj.isEmotionalTrade = :isEmotionalTrade))
+            AND (cast(:isUnplannedEntry as boolean) IS NULL OR (rj IS NOT NULL AND rj.isUnplannedEntry = :isUnplannedEntry))
+            AND (cast(:hasReview as boolean) IS NULL OR :hasReview = false OR (tj.reviewContent IS NOT NULL AND tj.reviewContent <> ''))
             """)
     List<TradingJournal> searchJournals(
             @Param("userId") Long userId,

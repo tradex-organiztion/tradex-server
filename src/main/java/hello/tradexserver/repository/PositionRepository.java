@@ -40,7 +40,7 @@ public interface PositionRepository extends JpaRepository<Position, Long> {
     // 기간 내 종료된 포지션 목록 조회 (시계열 차트용)
     @Query("SELECT p FROM Position p WHERE p.user.id = :userId " +
             "AND p.status = :status " +
-            "AND (:exchangeName IS NULL OR p.exchangeName = :exchangeName) " +
+            "AND (cast(:exchangeName as string) IS NULL OR p.exchangeName = :exchangeName) " +
             "AND p.exitTime >= :startDate " +
             "ORDER BY p.exitTime ASC")
     List<Position> findClosedPositionsByPeriod(
@@ -201,7 +201,7 @@ public interface PositionRepository extends JpaRepository<Position, Long> {
         SELECT p FROM Position p
         WHERE p.user.id = :userId
           AND p.status = 'CLOSED'
-          AND (:exchangeName IS NULL OR p.exchangeName = :exchangeName)
+          AND (cast(:exchangeName as string) IS NULL OR p.exchangeName = :exchangeName)
           AND (cast(:startDate as LocalDateTime) IS NULL OR p.exitTime >= :startDate)
           AND (cast(:endDate as LocalDateTime) IS NULL OR p.exitTime <= :endDate)
         ORDER BY p.exitTime ASC
@@ -222,7 +222,7 @@ public interface PositionRepository extends JpaRepository<Position, Long> {
         LEFT JOIN FETCH p.tradingJournal
         WHERE p.user.id = :userId
           AND p.status = 'CLOSED'
-          AND (:exchangeName IS NULL OR p.exchangeName = :exchangeName)
+          AND (cast(:exchangeName as string) IS NULL OR p.exchangeName = :exchangeName)
           AND (cast(:startDate as LocalDateTime) IS NULL OR p.exitTime >= :startDate)
           AND (cast(:endDate as LocalDateTime) IS NULL OR p.exitTime <= :endDate)
         ORDER BY p.entryTime ASC
