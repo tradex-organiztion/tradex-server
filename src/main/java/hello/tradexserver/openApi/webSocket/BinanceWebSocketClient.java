@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class BinanceWebSocketClient implements ExchangeWebSocketClient {
 
     // Testnet WebSocket
-    // private static final String WSS_BASE_URL = "wss://fstream.binancefuture.com";
+//     private static final String WSS_BASE_URL = "wss://fstream.binancefuture.com";
     // Live WebSocket
     private static final String WSS_BASE_URL = "wss://fstream.binance.com";
 

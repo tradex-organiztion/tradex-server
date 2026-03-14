@@ -138,10 +138,12 @@ public class BitgetWebSocketClient implements ExchangeWebSocketClient {
             return;
         }
         try {
-            // 포지션 + 오더 채널 동시 구독
+            // 포지션 + 오더 채널 동시 구독 (USDT-FUTURES + USDC-FUTURES)
             String subscribeMsg = "{\"op\":\"subscribe\",\"args\":[" +
                     "{\"instType\":\"USDT-FUTURES\",\"channel\":\"positions\",\"instId\":\"default\"}," +
-                    "{\"instType\":\"USDT-FUTURES\",\"channel\":\"orders\",\"instId\":\"default\"}" +
+                    "{\"instType\":\"USDT-FUTURES\",\"channel\":\"orders\",\"instId\":\"default\"}," +
+                    "{\"instType\":\"USDC-FUTURES\",\"channel\":\"positions\",\"instId\":\"default\"}," +
+                    "{\"instType\":\"USDC-FUTURES\",\"channel\":\"orders\",\"instId\":\"default\"}" +
                     "]}";
             wsClient.send(subscribeMsg);
             log.info("[Bitget] Position + Order subscription sent for user: {}", userId);

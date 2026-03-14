@@ -109,7 +109,7 @@ public class ChatContextService {
                         .multiply(BigDecimal.valueOf(100));
             }
 
-            prompt.append("- 총 실현 손익: ").append(totalPnl.setScale(2, RoundingMode.HALF_UP)).append(" USDT\n");
+            prompt.append("- 총 실현 손익: ").append(totalPnl.setScale(2, RoundingMode.HALF_UP)).append(" USD\n");
             prompt.append("- 승률: ").append(winRate.setScale(2, RoundingMode.HALF_UP)).append("% (")
                     .append(winCount).append("승 ").append(lossCount).append("패)\n");
             prompt.append("- 총 거래 수: ").append(totalCount).append("\n");
@@ -128,9 +128,9 @@ public class ChatContextService {
             BigDecimal shortPnl = row[4] != null ? new BigDecimal(row[4].toString()) : BigDecimal.ZERO;
             int shortCount = row[5] != null ? ((Number) row[5]).intValue() : 0;
 
-            prompt.append("- 롱: ").append(longPnl.setScale(2, RoundingMode.HALF_UP)).append(" USDT (")
+            prompt.append("- 롱: ").append(longPnl.setScale(2, RoundingMode.HALF_UP)).append(" USD (")
                     .append(longCount).append("건)\n");
-            prompt.append("- 숏: ").append(shortPnl.setScale(2, RoundingMode.HALF_UP)).append(" USDT (")
+            prompt.append("- 숏: ").append(shortPnl.setScale(2, RoundingMode.HALF_UP)).append(" USD (")
                     .append(shortCount).append("건)\n");
         } else {
             prompt.append("- 데이터 없음\n");
@@ -148,7 +148,7 @@ public class ChatContextService {
                 BigDecimal pnl = row[1] != null ? new BigDecimal(row[1].toString()) : BigDecimal.ZERO;
                 int tradeCount = row[2] != null ? ((Number) row[2]).intValue() : 0;
                 prompt.append("- ").append(symbol).append(": ")
-                        .append(pnl.setScale(2, RoundingMode.HALF_UP)).append(" USDT (")
+                        .append(pnl.setScale(2, RoundingMode.HALF_UP)).append(" USD (")
                         .append(tradeCount).append("건)\n");
             }
         } else {

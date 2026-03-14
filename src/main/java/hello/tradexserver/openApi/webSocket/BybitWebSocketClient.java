@@ -31,7 +31,7 @@ public class BybitWebSocketClient implements ExchangeWebSocketClient {
     // live 용
     private static final String WSS_URL = "wss://stream.bybit.com/v5/private";
     // demo 용
-    // private static final String WSS_URL = "wss://stream-demo.bybit.com/v5/private";
+//     private static final String WSS_URL = "wss://stream-demo.bybit.com/v5/private";
 
     private Long userId;
     private ExchangeApiKey exchangeApiKey;

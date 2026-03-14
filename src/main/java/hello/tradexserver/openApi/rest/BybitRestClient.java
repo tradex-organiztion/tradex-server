@@ -29,7 +29,7 @@ public class BybitRestClient implements ExchangeRestClient {
 
     private final RestTemplate restTemplate;
 
-    // private static final String BASE_URL = "https://api-demo.bybit.com/v5";
+//     private static final String BASE_URL = "https://api-demo.bybit.com/v5";
     private static final String BASE_URL = "https://api.bybit.com/v5";
 
     @Override
@@ -83,7 +83,7 @@ public class BybitRestClient implements ExchangeRestClient {
     }
 
     public List<BybitPositionRestItem> fetchOpenPositions(ExchangeApiKey apiKey) {
-        String queryString = "category=linear&settleCoin=USDT&limit=200";
+        String queryString = "category=linear&limit=200";
 
         try {
             HttpEntity<String> entity = new HttpEntity<>(createSignedHeaders(apiKey, queryString));
