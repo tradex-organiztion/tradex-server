@@ -152,7 +152,7 @@ public class WebSocketOrderService implements OrderListener {
                         )).collect(Collectors.toList());
                 case BITGET -> bitgetPositionRestService.getOpenPositions(apiKey).stream()
                         .map(p -> new SeedPositionData(
-                                p.getInstId(),
+                                p.getSymbol(),
                                 convertBitgetSide(p.getHoldSide(), p.getTotal()),
                                 parseBigDecimal(p.getOpenPriceAvg()),
                                 parseBigDecimal(p.getTotal()).abs(),

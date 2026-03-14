@@ -6,8 +6,8 @@ import hello.tradexserver.domain.ExchangeApiKey;
 import hello.tradexserver.openApi.rest.dto.BitgetOrderHistoryItem;
 import hello.tradexserver.openApi.rest.dto.BitgetPositionItem;
 import hello.tradexserver.openApi.rest.dto.WalletBalanceResponse;
+import hello.tradexserver.config.ExchangeProperties;
 import hello.tradexserver.openApi.util.BitgetSignatureUtil;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -17,20 +17,27 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class BitgetRestClient implements ExchangeRestClient {
 
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
+    private final String baseUrl;
+    private final boolean demoMode;
 
-    private static final String BASE_URL = "https://api.bitget.com";
+    public BitgetRestClient(RestTemplate restTemplate, ObjectMapper objectMapper,
+                             ExchangeProperties props) {
+        this.restTemplate = restTemplate;
+        this.objectMapper = objectMapper;
+        this.baseUrl = props.getBitget().getRestUrl();
+        this.demoMode = props.getBitget().isDemoMode();
+    }
 
-    // 데모 모드 여부 (데모 트레이딩 시 true)
-    private static final boolean IS_DEMO_MODE = false;
+    private static final List<String> PRODUCT_TYPES = List.of("USDT-FUTURES", "USDC-FUTURES");
 
     @Override
     public boolean validateApiKey(ExchangeApiKey apiKey) {
@@ -44,7 +51,7 @@ public class BitgetRestClient implements ExchangeRestClient {
 
             HttpEntity<String> entity = new HttpEntity<>(headers);
             ResponseEntity<String> response = restTemplate.exchange(
-                    BASE_URL + fullPath, HttpMethod.GET, entity, String.class);
+                    baseUrl + fullPath, HttpMethod.GET, entity, String.class);
 
             String body = response.getBody();
             if (body == null) return false;
@@ -76,9 +83,19 @@ public class BitgetRestClient implements ExchangeRestClient {
      */
     public List<BitgetOrderHistoryItem> fetchOrderHistory(ExchangeApiKey apiKey, String symbol,
                                                            Long startTime, Long endTime) {
+        List<BitgetOrderHistoryItem> allOrders = new ArrayList<>();
+        for (String productType : PRODUCT_TYPES) {
+            allOrders.addAll(fetchOrderHistoryByProductType(apiKey, symbol, startTime, endTime, productType));
+        }
+        return allOrders;
+    }
+
+    private List<BitgetOrderHistoryItem> fetchOrderHistoryByProductType(ExchangeApiKey apiKey, String symbol,
+                                                                         Long startTime, Long endTime,
+                                                                         String productType) {
         try {
             String requestPath = "/api/v2/mix/order/orders-history";
-            StringBuilder qs = new StringBuilder("productType=USDT-FUTURES");
+            StringBuilder qs = new StringBuilder("productType=").append(productType);
             if (symbol != null && !symbol.isEmpty()) {
                 qs.append("&symbol=").append(symbol);
             }
@@ -94,15 +111,15 @@ public class BitgetRestClient implements ExchangeRestClient {
 
             HttpEntity<String> entity = new HttpEntity<>(headers);
             ResponseEntity<String> response = restTemplate.exchange(
-                    BASE_URL + fullPath, HttpMethod.GET, entity, String.class);
+                    baseUrl + fullPath, HttpMethod.GET, entity, String.class);
 
             String body = response.getBody();
             if (body == null) return List.of();
 
             JsonNode root = objectMapper.readTree(body);
             if (!"00000".equals(root.path("code").asText())) {
-                log.error("[Bitget] fetchOrderHistory 실패 - code: {}, msg: {}",
-                        root.path("code").asText(), root.path("msg").asText());
+                log.error("[Bitget] fetchOrderHistory({}) 실패 - code: {}, msg: {}",
+                        productType, root.path("code").asText(), root.path("msg").asText());
                 return List.of();
             }
 
@@ -114,7 +131,7 @@ public class BitgetRestClient implements ExchangeRestClient {
                     objectMapper.getTypeFactory().constructCollectionType(List.class, BitgetOrderHistoryItem.class)
             );
         } catch (Exception e) {
-            log.error("[Bitget] fetchOrderHistory 실패 - apiKeyId: {}", apiKey.getId(), e);
+            log.error("[Bitget] fetchOrderHistory({}) 실패 - apiKeyId: {}", productType, apiKey.getId(), e);
             return List.of();
         }
     }
@@ -124,9 +141,17 @@ public class BitgetRestClient implements ExchangeRestClient {
      * GET /api/v2/mix/position/all-position
      */
     public List<BitgetPositionItem> fetchAllPositions(ExchangeApiKey apiKey) {
+        List<BitgetPositionItem> allPositions = new ArrayList<>();
+        for (String productType : PRODUCT_TYPES) {
+            allPositions.addAll(fetchPositionsByProductType(apiKey, productType));
+        }
+        return allPositions;
+    }
+
+    private List<BitgetPositionItem> fetchPositionsByProductType(ExchangeApiKey apiKey, String productType) {
         try {
             String requestPath = "/api/v2/mix/position/all-position";
-            String queryString = "productType=USDT-FUTURES";
+            String queryString = "productType=" + productType;
             String fullPath = requestPath + "?" + queryString;
 
             String timestamp = String.valueOf(System.currentTimeMillis());
@@ -134,15 +159,15 @@ public class BitgetRestClient implements ExchangeRestClient {
 
             HttpEntity<String> entity = new HttpEntity<>(headers);
             ResponseEntity<String> response = restTemplate.exchange(
-                    BASE_URL + fullPath, HttpMethod.GET, entity, String.class);
+                    baseUrl + fullPath, HttpMethod.GET, entity, String.class);
 
             String body = response.getBody();
             if (body == null) return List.of();
 
             JsonNode root = objectMapper.readTree(body);
             if (!"00000".equals(root.path("code").asText())) {
-                log.error("[Bitget] fetchAllPositions 실패 - code: {}, msg: {}",
-                        root.path("code").asText(), root.path("msg").asText());
+                log.error("[Bitget] fetchAllPositions({}) 실패 - code: {}, msg: {}",
+                        productType, root.path("code").asText(), root.path("msg").asText());
                 return List.of();
             }
 
@@ -154,7 +179,7 @@ public class BitgetRestClient implements ExchangeRestClient {
                     objectMapper.getTypeFactory().constructCollectionType(List.class, BitgetPositionItem.class)
             );
         } catch (Exception e) {
-            log.error("[Bitget] fetchAllPositions 실패 - apiKeyId: {}", apiKey.getId(), e);
+            log.error("[Bitget] fetchAllPositions({}) 실패 - apiKeyId: {}", productType, apiKey.getId(), e);
             return List.of();
         }
     }
@@ -173,7 +198,7 @@ public class BitgetRestClient implements ExchangeRestClient {
             headers.set("Content-Type", "application/json");
             headers.set("locale", "en-US");
 
-            if (IS_DEMO_MODE) {
+            if (demoMode) {
                 headers.set("paptrading", "1");
             }
 

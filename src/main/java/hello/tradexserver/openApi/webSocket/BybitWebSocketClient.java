@@ -28,11 +28,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
 public class BybitWebSocketClient implements ExchangeWebSocketClient {
-    // live 용
-    private static final String WSS_URL = "wss://stream.bybit.com/v5/private";
-    // demo 용
-    // private static final String WSS_URL = "wss://stream-demo.bybit.com/v5/private";
-
+    private final String wssUrl;
     private Long userId;
     private ExchangeApiKey exchangeApiKey;
     private String apiKey;
@@ -51,9 +47,10 @@ public class BybitWebSocketClient implements ExchangeWebSocketClient {
     private int reconnectAttempts = 0;
     private boolean shouldReconnect = true;
 
-    public BybitWebSocketClient(Long userId, ExchangeApiKey exchangeApiKey) {
+    public BybitWebSocketClient(Long userId, ExchangeApiKey exchangeApiKey, String wssUrl) {
         this.userId = userId;
         this.exchangeApiKey = exchangeApiKey;
+        this.wssUrl = wssUrl;
         this.apiKey = exchangeApiKey.getApiKey();
         this.apiSecret = exchangeApiKey.getApiSecret();
         this.objectMapper = new ObjectMapper();
@@ -73,7 +70,7 @@ public class BybitWebSocketClient implements ExchangeWebSocketClient {
     @Override
     public void connect() {
         try {
-            wsClient = new BybitWebSocketImpl(new URI(WSS_URL));
+            wsClient = new BybitWebSocketImpl(new URI(wssUrl));
             wsClient.connect();
             log.debug("[Bybit] WebSocket connecting for user: {}", userId);
         } catch (URISyntaxException e) {

@@ -39,6 +39,13 @@ public class NotificationEventListener {
         }
     }
 
+    private String extractQuoteCurrency(String symbol) {
+        if (symbol == null) return "USDT";
+        String upper = symbol.toUpperCase();
+        if (upper.endsWith("USDC") || upper.endsWith("PERP")) return "USDC";
+        return "USDT";
+    }
+
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onPositionClose(PositionCloseEvent event) {
@@ -51,7 +58,8 @@ public class NotificationEventListener {
         }
 
         String side = event.getSide() == PositionSide.LONG ? "롱" : "숏";
-        String pnlStr = String.format("%.2f USDT", event.getRealizedPnl());
+        String quoteCurrency = extractQuoteCurrency(event.getSymbol());
+        String pnlStr = String.format("%.2f %s", event.getRealizedPnl(), quoteCurrency);
         String title = "포지션 종료";
         String message = String.format("%s %s 포지션이 종료되었습니다. (PnL: %s)",
                 event.getSymbol(), side, pnlStr);

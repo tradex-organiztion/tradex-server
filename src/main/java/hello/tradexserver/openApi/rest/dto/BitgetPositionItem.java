@@ -8,7 +8,7 @@ import lombok.Data;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class BitgetPositionItem {
     private String posId;
-    private String instId;            // Symbol e.g. "BTCUSDT"
+    private String symbol;            // REST 응답 심볼 필드 e.g. "BTCUSDT", "BTCPERP"
     private String holdSide;          // "long" / "short" / "net"
     private String posMode;           // "hedge_mode" / "one_way_mode"
     private String total;             // 총 포지션 수량

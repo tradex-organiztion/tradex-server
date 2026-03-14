@@ -160,9 +160,11 @@ public class ChartService {
         String granularity = toBitgetGranularity(resolution);
         int limit = countBack != null ? Math.min(countBack, 1000) : 200;
 
+        String upper = symbol.toUpperCase();
+        String productType = (upper.contains("USDC") || upper.endsWith("PERP")) ? "USDC-FUTURES" : "USDT-FUTURES";
         String url = BITGET_API + "/api/v2/mix/market/candles"
                 + "?symbol=" + symbol
-                + "&productType=USDT-FUTURES"
+                + "&productType=" + productType
                 + "&granularity=" + granularity
                 + "&startTime=" + (from * 1000L)
                 + "&endTime=" + (to * 1000L)

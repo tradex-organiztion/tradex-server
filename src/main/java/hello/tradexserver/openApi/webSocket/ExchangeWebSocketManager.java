@@ -1,5 +1,6 @@
 package hello.tradexserver.openApi.webSocket;
 
+import hello.tradexserver.config.ExchangeProperties;
 import hello.tradexserver.domain.ExchangeApiKey;
 import hello.tradexserver.openApi.rest.BinanceRestClient;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +20,7 @@ public class ExchangeWebSocketManager {
     private final BinanceRestClient binanceRestClient;
     private final PositionListener positionListener;
     private final OrderListener orderListener;
+    private final ExchangeProperties exchangeProperties;
 
     public void connectUser(Long userId, ExchangeApiKey apiKey) {
         String webSocketKey = generateWebSocketKey(userId, apiKey.getExchangeName().name());
@@ -73,15 +75,18 @@ public class ExchangeWebSocketManager {
         String exchange = apiKey.getExchangeName().name();
 
         if ("BYBIT".equalsIgnoreCase(exchange)) {
-            return new BybitWebSocketClient(userId, apiKey);
+            return new BybitWebSocketClient(userId, apiKey,
+                    exchangeProperties.getBybit().getWsUrl());
         }
 
         if ("BINANCE".equalsIgnoreCase(exchange)) {
-            return new BinanceWebSocketClient(userId, apiKey, binanceRestClient);
+            return new BinanceWebSocketClient(userId, apiKey, binanceRestClient,
+                    exchangeProperties.getBinance().getWsUrl());
         }
 
         if ("BITGET".equalsIgnoreCase(exchange)) {
-            return new BitgetWebSocketClient(userId, apiKey);
+            return new BitgetWebSocketClient(userId, apiKey,
+                    exchangeProperties.getBitget().getWsUrl());
         }
 
         throw new IllegalArgumentException("Unsupported exchange: " + exchange);
